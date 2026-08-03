@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Typeface */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap");
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Dark purple futuristic theme matching Index.tsx */
+    --background: 270 60% 8%;  /* #1a0a2e deep purple */
+    --foreground: 0 0% 100%;   /* white text */
+
+    --card: 270 45% 18%;       /* #2d1b4e purple card */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 270 45% 18%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 25 100% 50%;    /* orange */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 270 40% 25%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 270 30% 20%;
+    --muted-foreground: 270 30% 75%;  /* purple-200 */
+
+    --accent: 270 40% 22%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 270 30% 25%;
+    --input: 270 30% 25%;
+    --ring: 25 100% 50%;  /* orange */
+
+    --radius: 0.9rem;
+
+    /* Brand accents - orange and fuchsia */
+    --brand: 25 100% 50%;  /* orange */
+    --brand-foreground: 0 0% 100%;
+    --highlight: 300 70% 55%; /* fuchsia */
+    --highlight-foreground: 0 0% 100%;
+
+    /* Effects */
+    --gradient-hero: radial-gradient(1200px 600px at var(--spot-x, 65%) var(--spot-y, 20%),
+        hsl(var(--brand) / 0.22),
+        transparent 55%),
+      linear-gradient(135deg, hsl(var(--foreground) / 0.02), transparent 40%),
+      radial-gradient(900px 500px at 20% 90%, hsl(var(--highlight) / 0.18), transparent 55%);
+    --texture-grain: radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.07) 1px, transparent 1.6px);
+    --shadow-soft: 0 18px 60px -28px hsl(var(--foreground) / 0.32);
+    --shadow-glow: 0 18px 60px -28px hsl(var(--brand) / 0.45);
+
+    --sidebar-background: 270 45% 12%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 25 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 40% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 270 30% 25%;
+    --sidebar-ring: 25 100% 50%;
+  }
+
+  .dark {
+    --background: 222 52% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 52% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 52% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 190 78% 48%;
+    --primary-foreground: 222 52% 9%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 20% 70%;
+
+    --accent: 222 30% 16%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 68% 38%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 28% 18%;
+    --input: 222 28% 18%;
+    --ring: 190 78% 48%;
+
+    --brand: 190 78% 48%;
+    --brand-foreground: 222 52% 9%;
+    --highlight: 34 92% 54%;
+    --highlight-foreground: 222 52% 9%;
+
+    --gradient-hero: radial-gradient(1200px 600px at var(--spot-x, 65%) var(--spot-y, 20%),
+        hsl(var(--brand) / 0.26),
+        transparent 55%),
+      radial-gradient(900px 500px at 20% 90%, hsl(var(--highlight) / 0.20), transparent 55%);
+    --texture-grain: radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.06) 1px, transparent 1.6px);
+    --shadow-soft: 0 18px 60px -28px hsl(var(--foreground) / 0.22);
+    --shadow-glow: 0 18px 60px -28px hsl(var(--brand) / 0.45);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  html {
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Fraunces", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  }
+}

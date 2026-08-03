@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-js/
+dist-transpiled/
+dist.bak/
+
+# Database files (contain real data)
+*.db
+*.db-shm
+*.db-wal
+
+# Environment secrets
+.env
+
+# Large media files
+*.mp4
+*.tgz
+*.tar.gz
+*.png
+*.jpg
+logo_*.png
+
+# Lock files (generated)
+bun.lockb
+pnpm-lock.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Student data (PDFs with personal info)
+data/*.pdf
+public/*.pdf
+ejemplo-web.pdf
+
+# Misc
+*.log
+
+data/submissions/
+moodle-config.json

@@ -1,0 +1,42 @@
+{
+  "moodle": {
+    "version": "5.2.1",
+    "url": "https://moodledev.thestudiomax.com",
+    "db": {
+      "type": "postgresql",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "user": "moodleuser",
+      "password": "***CAMBIAR***",
+      "database": "moodle",
+      "prefix": "mdl_"
+    },
+    "courses": {
+      "level": "bachillerato",
+      "grade": "1ro BGU",
+      "defaultPeriod": "Q2 2025-2026"
+    }
+  },
+  "teacherbot": {
+    "db": "/var/www/teacherai/teacherbot.db"
+  },
+  "sync": {
+    "importStudents": true,
+    "importTeachers": true,
+    "importCourses": true,
+    "importAssignments": true,
+    "importSubmissions": true,
+    "importGrades": true,
+    "mapGradesTo10Scale": true,
+    "autoGenerateRubric": true
+  },
+  "mapping": {
+    "roles": {
+      "editingteacher": "docente",
+      "teacher": "docente",
+      "student": "estudiante",
+      "manager": "admin"
+    }
+  }
+}
+
