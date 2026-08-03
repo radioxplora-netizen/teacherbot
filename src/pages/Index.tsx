@@ -117,43 +117,22 @@ function StatCard({ value, label, icon: Icon }: { value: string; label: string; 
   );
 }
 
-/** Retorna los botones de acceso según el rol del usuario */
+/** Botón de acceso único — solo login o Mi Panel según sesión */
 function RoleButtons() {
   const { user, isAuthenticated, logout } = useAuth();
-  const role = user?.role;
-
-  // Admin ve todo. Otros roles solo ven su portal.
-  const showDocente = !role || role === 'docente' || role === 'admin';
-  const showVicerrector = !role || role === 'vicerrector' || role === 'admin';
-  const showSistemas = !role || role === 'sistemas' || role === 'admin';
+  const panelHref = user?.role === 'vicerrector' ? '/vicerrectorado' 
+    : user?.role === 'sistemas' ? '/sistemas' 
+    : '/docente';
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-      {showDocente && (
-        <Button asChild size="lg" className="group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all">
-          <a href={isAuthenticated ? "/docente" : "/login"} className="flex items-center gap-2">
-            <GraduationCap className="size-5" />
-            Portal Docente
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-          </a>
-        </Button>
-      )}
-      {showVicerrector && (
-        <Button asChild size="lg" className="bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40">
-          <a href={isAuthenticated ? "/vicerrectorado" : "/login"} className="flex items-center gap-2">
-            <ShieldCheck className="size-5" />
-            Panel Directivo
-          </a>
-        </Button>
-      )}
-      {showSistemas && (
-        <Button asChild size="lg" variant="ghost" className="bg-[#2d1b4e] border border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500">
-          <a href={isAuthenticated ? "/sistemas" : "/login"} className="flex items-center gap-2">
-            <Activity className="size-5" />
-            Sistemas
-          </a>
-        </Button>
-      )}
+      <Button asChild size="lg" className="group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all">
+        <a href={isAuthenticated ? panelHref : "/login"} className="flex items-center gap-2">
+          <GraduationCap className="size-5" />
+          {isAuthenticated ? 'Mi Panel' : 'Acceder'}
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+        </a>
+      </Button>
       {isAuthenticated && (
         <Button size="lg" onClick={logout} className="bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 hover:border-red-500">
           <LogOut className="size-5 mr-2" />

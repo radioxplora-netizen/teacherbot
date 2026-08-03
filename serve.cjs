@@ -1285,13 +1285,14 @@ http.createServer((req, res) => {
     const result = handleAPI(req, res, apiPath);
     if (result instanceof Promise) {
       result.catch(e => {
-        console.error('Unhandled API error:', e);
-        error(res, 'Error interno');
+        if (!res.headersSent) {
+          console.error('Unhandled API error:', e);
+          error(res, 'Error interno');
+        }
       });
-    } else if (result !== null) {
-      // Already handled
-    } else {
-      // Not an API route, serve static
+    }
+    // Solo servir estáticos si no se envió respuesta aún
+    if (!res.headersSent) {
       serveStatic(req, res, urlPath);
     }
     return;

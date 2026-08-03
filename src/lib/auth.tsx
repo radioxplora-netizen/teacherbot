@@ -48,8 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (_) {
+      // Ignora errores de red — limpia sesión local igual
+    }
     setUser(null);
+    window.location.href = '/';
   }, []);
 
   const hasRole = useCallback((...roles: string[]) => {
