@@ -20,8 +20,6 @@ import AIConfig from "./pages/sistemas/AIConfig";
 
 const queryClient = new QueryClient();
 
-const queryClient = new QueryClient();
-
 function AppRoutes() {
   useTokenRefresh();
   return (

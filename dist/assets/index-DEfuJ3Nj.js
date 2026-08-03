@@ -2578,6 +2578,33 @@ const ExternalLink = createLucideIcon("ExternalLink", [
  */
 
 
+const EyeOff = createLucideIcon("EyeOff", [
+  [
+    "path",
+    {
+      d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
+      key: "ct8e1f"
+    }
+  ],
+  ["path", { d: "M14.084 14.158a3 3 0 0 1-4.242-4.242", key: "151rxh" }],
+  [
+    "path",
+    {
+      d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",
+      key: "13bj9a"
+    }
+  ],
+  ["path", { d: "m2 2 20 20", key: "1ooewy" }]
+]);
+
+/**
+ * @license lucide-react v0.462.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
 const Eye = createLucideIcon("Eye", [
   [
     "path",
@@ -2719,6 +2746,20 @@ const Layers = createLucideIcon("Layers", [
 
 const LoaderCircle = createLucideIcon("LoaderCircle", [
   ["path", { d: "M21 12a9 9 0 1 1-6.219-8.56", key: "13zald" }]
+]);
+
+/**
+ * @license lucide-react v0.462.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+const LogOut = createLucideIcon("LogOut", [
+  ["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", key: "1uf3rs" }],
+  ["polyline", { points: "16 17 21 12 16 7", key: "1gabdz" }],
+  ["line", { x1: "21", x2: "9", y1: "12", y2: "12", key: "1uyos4" }]
 ]);
 
 /**
@@ -11979,13 +12020,13 @@ function _renderMatches(matches, parentMatches, dataRouterState, future) {
     }) : getChildren();
   }, null);
 }
-var DataRouterHook$1 = /* @__PURE__ */ (function(DataRouterHook2) {
+var DataRouterHook$1 = /* @__PURE__ */ function(DataRouterHook2) {
   DataRouterHook2["UseBlocker"] = "useBlocker";
   DataRouterHook2["UseRevalidator"] = "useRevalidator";
   DataRouterHook2["UseNavigateStable"] = "useNavigate";
   return DataRouterHook2;
-})(DataRouterHook$1 || {});
-var DataRouterStateHook$1 = /* @__PURE__ */ (function(DataRouterStateHook2) {
+}(DataRouterHook$1 || {});
+var DataRouterStateHook$1 = /* @__PURE__ */ function(DataRouterStateHook2) {
   DataRouterStateHook2["UseBlocker"] = "useBlocker";
   DataRouterStateHook2["UseLoaderData"] = "useLoaderData";
   DataRouterStateHook2["UseActionData"] = "useActionData";
@@ -11997,7 +12038,7 @@ var DataRouterStateHook$1 = /* @__PURE__ */ (function(DataRouterStateHook2) {
   DataRouterStateHook2["UseNavigateStable"] = "useNavigate";
   DataRouterStateHook2["UseRouteId"] = "useRouteId";
   return DataRouterStateHook2;
-})(DataRouterStateHook$1 || {});
+}(DataRouterStateHook$1 || {});
 function useDataRouterContext$1(hookName) {
   let ctx = reactExports.useContext(DataRouterContext);
   !ctx ? invariant$1(false) : void 0;
@@ -12062,6 +12103,34 @@ function warningOnce(key, cond, message) {
 function logV6DeprecationWarnings(renderFuture, routerFuture) {
   if ((renderFuture == null ? void 0 : renderFuture.v7_startTransition) === void 0) ;
   if ((renderFuture == null ? void 0 : renderFuture.v7_relativeSplatPath) === void 0 && (true)) ;
+}
+function Navigate(_ref4) {
+  let {
+    to,
+    replace: replace2,
+    state,
+    relative
+  } = _ref4;
+  !useInRouterContext() ? invariant$1(false) : void 0;
+  let {
+    future,
+    static: isStatic
+  } = reactExports.useContext(NavigationContext);
+  let {
+    matches
+  } = reactExports.useContext(RouteContext);
+  let {
+    pathname: locationPathname
+  } = useLocation();
+  let navigate = useNavigate();
+  let path = resolveTo(to, getResolveToMatches(matches, future.v7_relativeSplatPath), locationPathname, relative === "path");
+  let jsonPath = JSON.stringify(path);
+  reactExports.useEffect(() => navigate(JSON.parse(jsonPath), {
+    replace: replace2,
+    state,
+    relative
+  }), [navigate, jsonPath, relative, replace2, state]);
+  return null;
 }
 function Outlet(props) {
   return useOutlet(props.context);
@@ -12503,6 +12572,51 @@ const Button = reactExports.forwardRef(
 );
 Button.displayName = "Button";
 
+const AuthContext = reactExports.createContext(null);
+function AuthProvider({ children }) {
+  const [user, setUser] = reactExports.useState(null);
+  const [loading, setLoading] = reactExports.useState(true);
+  reactExports.useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" }).then((r) => r.ok ? r.json() : null).then((data) => setUser(data)).catch(() => setUser(null)).finally(() => setLoading(false));
+  }, []);
+  const login = reactExports.useCallback(async (email, password) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      credentials: "include"
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Error de autenticacion");
+    }
+    const data = await res.json();
+    setUser(data.user);
+  }, []);
+  const logout = reactExports.useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    setUser(null);
+  }, []);
+  const hasRole = reactExports.useCallback((...roles) => {
+    return user ? roles.includes(user.role) : false;
+  }, [user]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(AuthContext.Provider, { value: { user, loading, login, logout, isAuthenticated: !!user, hasRole }, children });
+}
+const useAuth = () => reactExports.useContext(AuthContext);
+function useTokenRefresh() {
+  const { isAuthenticated } = useAuth();
+  reactExports.useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(async () => {
+      try {
+        await fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
+      } catch (e) {
+      }
+    }, 10 * 60 * 1e3);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+}
+
 function useCounter(end, duration = 2e3) {
   const [count, setCount] = reactExports.useState(0);
   reactExports.useEffect(() => {
@@ -12572,6 +12686,52 @@ function StatCard({ value, label, icon: Icon }) {
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative text-sm text-purple-200", children: label })
   ] });
 }
+function RoleButtons() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const role = user?.role;
+  const showDocente = !role || role === "docente" || role === "admin";
+  const showVicerrector = !role || role === "vicerrector" || role === "admin";
+  const showSistemas = !role || role === "sistemas" || role === "admin";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 sm:flex-row sm:justify-center", children: [
+    showDocente && /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: isAuthenticated ? "/docente" : "/login", className: "flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(GraduationCap, { className: "size-5" }),
+      "Portal Docente",
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ArrowRight, { className: "size-4 transition-transform group-hover:translate-x-1" })
+    ] }) }),
+    showVicerrector && /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: isAuthenticated ? "/vicerrectorado" : "/login", className: "flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ShieldCheck, { className: "size-5" }),
+      "Panel Directivo"
+    ] }) }),
+    showSistemas && /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", variant: "ghost", className: "bg-[#2d1b4e] border border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: isAuthenticated ? "/sistemas" : "/login", className: "flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Activity, { className: "size-5" }),
+      "Sistemas"
+    ] }) }),
+    isAuthenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { size: "lg", onClick: logout, className: "bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 hover:border-red-500", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(LogOut, { className: "size-5 mr-2" }),
+      "Salir"
+    ] })
+  ] });
+}
+function HeaderBar() {
+  const { user, isAuthenticated } = useAuth();
+  const accessHref = isAuthenticated ? user?.role === "vicerrector" ? "/vicerrectorado" : user?.role === "sistemas" ? "/sistemas" : "/docente" : "/login";
+  const accessLabel = isAuthenticated ? "Mi Panel" : "Acceder";
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "sticky top-0 z-50 border-b border-white/10 bg-[#1a0a2e]/90 backdrop-blur-xl", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "container flex h-16 items-center justify-between", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Brain, { className: "size-5 text-white" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-lg font-bold text-white", children: "Oxford IA" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-2 text-sm text-purple-300", children: "Educación Inteligente" })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "hidden md:flex items-center gap-6", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "#beneficios", className: "text-sm text-purple-200 hover:text-white transition-colors", children: "Beneficios" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "#estadisticas", className: "text-sm text-purple-200 hover:text-white transition-colors", children: "Impacto" }),
+      isAuthenticated && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-orange-400 font-medium", children: user?.name }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "sm", className: "bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 hover:from-orange-400 hover:to-orange-500 shadow-lg shadow-orange-500/30", children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: accessHref, children: accessLabel }) })
+    ] })
+  ] }) });
+}
 const Index = () => {
   const tasksProcessed = useCounter(12847);
   const hoursSaved = useCounter(2156);
@@ -12590,20 +12750,7 @@ const Index = () => {
       /* @__PURE__ */ jsxRuntimeExports.jsx(FloatingParticle, { delay: 0.3, size: 4, left: "40%", top: "30%" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "sticky top-0 z-50 border-b border-white/10 bg-[#1a0a2e]/90 backdrop-blur-xl", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "container flex h-16 items-center justify-between", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Brain, { className: "size-5 text-white" }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-lg font-bold text-white", children: "Oxford IA" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-2 text-sm text-purple-300", children: "Educación Inteligente" })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "hidden md:flex items-center gap-6", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "#beneficios", className: "text-sm text-purple-200 hover:text-white transition-colors", children: "Beneficios" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "#estadisticas", className: "text-sm text-purple-200 hover:text-white transition-colors", children: "Impacto" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "sm", className: "bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 hover:from-orange-400 hover:to-orange-500 shadow-lg shadow-orange-500/30", children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/docente", children: "Acceder" }) })
-      ] })
-    ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HeaderBar, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "relative py-20 md:py-32", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mx-auto max-w-4xl text-center", children: [
@@ -12629,21 +12776,7 @@ const Index = () => {
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "bg-gradient-to-r from-orange-400 via-orange-500 to-fuchsia-500 bg-clip-text text-transparent", children: "Educación Oxford" })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mx-auto mb-10 max-w-2xl text-lg text-purple-200 md:text-xl", children: "Transformamos la experiencia educativa con IA avanzada. Evaluaciones más rápidas, feedback personalizado y decisiones basadas en datos para toda la comunidad educativa." }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 sm:flex-row sm:justify-center", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: "/docente", className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(GraduationCap, { className: "size-5" }),
-              "Portal Docente",
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ArrowRight, { className: "size-4 transition-transform group-hover:translate-x-1" })
-            ] }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: "/vicerrectorado", className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ShieldCheck, { className: "size-5" }),
-              "Panel Directivo"
-            ] }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", variant: "ghost", className: "bg-[#2d1b4e] border border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: "/sistemas", className: "flex items-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Activity, { className: "size-5" }),
-              "Sistemas"
-            ] }) })
-          ] })
+          /* @__PURE__ */ jsxRuntimeExports.jsx(RoleButtons, {})
         ] }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-1/4 top-1/3 -z-10 size-96 rounded-full bg-orange-500/20 blur-3xl" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute right-1/4 bottom-1/4 -z-10 size-64 rounded-full bg-fuchsia-600/25 blur-3xl" }),
@@ -12804,7 +12937,7 @@ const Index = () => {
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "mb-4 text-3xl font-bold md:text-4xl text-white", children: "¿Listo para Transformar la Educación?" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mx-auto mb-8 max-w-xl text-white/90", children: "Únete a la revolución educativa de Oxford. Experimenta el poder de la IA para potenciar el aprendizaje y la enseñanza." }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "bg-white text-orange-600 hover:bg-white/90 shadow-xl font-bold", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: "/docente", className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { asChild: true, size: "lg", className: "bg-white text-orange-600 hover:bg-white/90 shadow-xl font-bold", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { href: "/login", className: "flex items-center gap-2", children: [
             "Comenzar Ahora ",
             /* @__PURE__ */ jsxRuntimeExports.jsx(ArrowRight, { className: "size-5" })
           ] }) })
@@ -12835,6 +12968,124 @@ const NotFound = () => {
     /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/", className: "text-primary underline hover:text-primary/90", children: "Return to Home" })
   ] }) });
 };
+
+function getDashboardForRole(role) {
+  const map = { admin: "/sistemas", vicerrector: "/vicerrectorado", docente: "/docente", estudiante: "/estudiante", sistemas: "/sistemas" };
+  return map[role] || "/docente";
+}
+function Login() {
+  const [email, setEmail] = reactExports.useState("");
+  const [password, setPassword] = reactExports.useState("");
+  const [showPassword, setShowPassword] = reactExports.useState(false);
+  const [error, setError] = reactExports.useState("");
+  const [loading, setLoading] = reactExports.useState(false);
+  const { login, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  if (isAuthenticated && user) {
+    const to = location.state?.from?.pathname || getDashboardForRole(user.role);
+    navigate(to, { replace: true });
+    return null;
+  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+      const to = location.state?.from?.pathname || getDashboardForRole(user?.role || "docente");
+      navigate(to, { replace: true });
+    } catch (err) {
+      setError(err.message || "Error al iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex min-h-screen items-center justify-center bg-gradient-to-br from-[#1a0a2e] via-[#2d1b4e] to-[#1a0a2e] p-4", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/20 via-transparent to-transparent pointer-events-none" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative w-full max-w-md", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -top-20 left-1/2 -translate-x-1/2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-2xl shadow-orange-500/40", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Brain, { className: "size-10 text-white" }) }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-3xl border border-white/10 bg-white/5 p-8 pt-16 backdrop-blur-xl shadow-2xl", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "mb-2 text-center text-2xl font-bold text-white", children: "Oxford IA" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mb-8 text-center text-sm text-purple-300", children: "Iniciar sesión en TeacherBot" }),
+        error && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-6 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CircleAlert, { className: "size-4 shrink-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: error })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: handleSubmit, className: "space-y-5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "mb-1.5 block text-sm font-medium text-purple-200", children: "Email" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "input",
+              {
+                type: "email",
+                value: email,
+                onChange: (e) => setEmail(e.target.value),
+                className: "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-purple-400/50 outline-none transition focus:border-orange-500/50 focus:bg-white/10",
+                placeholder: "admin@teacherbot.edu.ec",
+                required: true,
+                autoFocus: true
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "mb-1.5 block text-sm font-medium text-purple-200", children: "Contraseña" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  type: showPassword ? "text" : "password",
+                  value: password,
+                  onChange: (e) => setPassword(e.target.value),
+                  className: "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder-purple-400/50 outline-none transition focus:border-orange-500/50 focus:bg-white/10",
+                  placeholder: "••••••••",
+                  required: true
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setShowPassword(!showPassword),
+                  className: "absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white transition",
+                  children: showPassword ? /* @__PURE__ */ jsxRuntimeExports.jsx(EyeOff, { className: "size-5" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Eye, { className: "size-5" })
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "submit",
+              disabled: loading,
+              className: "w-full rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3 font-semibold text-white shadow-lg shadow-orange-500/30 transition-all hover:from-orange-400 hover:to-orange-500 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
+              children: [
+                loading && /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { className: "size-5 animate-spin" }),
+                loading ? "Ingresando..." : "Ingresar"
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-center text-xs text-purple-400/60", children: "Unidad Educativa Oxford © 2026" })
+      ] })
+    ] })
+  ] });
+}
+
+function ProtectedRoute({ children, roles }) {
+  const { isAuthenticated, user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex h-screen items-center justify-center bg-[#1a0a2e]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { className: "size-8 animate-spin text-orange-500" }) });
+  }
+  if (!isAuthenticated) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(Navigate, { to: "/login", state: { from: location }, replace: true });
+  }
+  if (roles && user && !roles.includes(user.role)) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(Navigate, { to: "/no-autorizado", replace: true });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children });
+}
 
 const NavLink = reactExports.forwardRef(
   ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
@@ -24634,7 +24885,7 @@ function(t){t.processWEBP=function(e,r,n,i){var a=new ue(e),o=a.width,s=a.height
  * Licensed under the MIT License.
  * http://opensource.org/licenses/mit-license
  */
-function(t){var e=function(t){for(var e=t.length,r=new Uint8Array(e),n=0;n<e;n++)r[n]=t.charCodeAt(n);return r};t.API.events.push(["addFont",function(r){var n=void 0,i=r.font,a=r.instance;if(!i.isStandardFont){if(void 0===a)throw new Error("Font does not exist in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");if("string"!=typeof(n=false===a.existsFileInVFS(i.postScriptName)?a.loadFile(i.postScriptName):a.getFileFromVFS(i.postScriptName)))throw new Error("Font is not stored as string-data in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");!function(r,n){n=/^\x00\x01\x00\x00/.test(n)?e(n):e(f$1(n)),r.metadata=t.API.TTFFont.open(n),r.metadata.Unicode=r.metadata.Unicode||{encoding:{},kerning:{},widths:[]},r.metadata.glyIdsUsed=[0];}(i,n);}}]);}(E),E.API.addSvgAsImage=function(t,e,r,n,a,s,u,c){if(isNaN(e)||isNaN(r))throw o.error("jsPDF.addSvgAsImage: Invalid coordinates",arguments),new Error("Invalid coordinates passed to jsPDF.addSvgAsImage");if(isNaN(n)||isNaN(a))throw o.error("jsPDF.addSvgAsImage: Invalid measurements",arguments),new Error("Invalid measurements (width and/or height) passed to jsPDF.addSvgAsImage");var l=document.createElement("canvas");l.width=n,l.height=a;var h=l.getContext("2d");h.fillStyle="#fff",h.fillRect(0,0,l.width,l.height);var f={ignoreMouse:true,ignoreAnimation:true,ignoreDimensions:true},d=this;return (i.canvg?Promise.resolve(i.canvg):__vitePreload(() => import('./index.es-CJDAOMOT.js'),true?[]:void 0)).catch(function(t){return Promise.reject(new Error("Could not load canvg: "+t))}).then(function(t){return t.default?t.default:t}).then(function(e){return e.fromString(h,t,f)},function(){return Promise.reject(new Error("Could not load canvg."))}).then(function(t){return t.render(f)}).then(function(){d.addImage(l.toDataURL("image/jpeg",1),e,r,n,a,u,c);})},E.API.putTotalPages=function(t){var e,r=0;parseInt(this.internal.getFont().id.substr(1),10)<15?(e=new RegExp(t,"g"),r=this.internal.getNumberOfPages()):(e=new RegExp(this.pdfEscape16(t,this.internal.getFont()),"g"),r=this.pdfEscape16(this.internal.getNumberOfPages()+"",this.internal.getFont()));for(var n=1;n<=this.internal.getNumberOfPages();n++)for(var i=0;i<this.internal.pages[n].length;i++)this.internal.pages[n][i]=this.internal.pages[n][i].replace(e,r);return this},E.API.viewerPreferences=function(e,r){var n;e=e||{},r=r||false;var i,a,o,s={HideToolbar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideMenubar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideWindowUI:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},FitWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},CenterWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},DisplayDocTitle:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.4},NonFullScreenPageMode:{defaultValue:"UseNone",value:"UseNone",type:"name",explicitSet:false,valueSet:["UseNone","UseOutlines","UseThumbs","UseOC"],pdfVersion:1.3},Direction:{defaultValue:"L2R",value:"L2R",type:"name",explicitSet:false,valueSet:["L2R","R2L"],pdfVersion:1.3},ViewArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},ViewClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintScaling:{defaultValue:"AppDefault",value:"AppDefault",type:"name",explicitSet:false,valueSet:["AppDefault","None"],pdfVersion:1.6},Duplex:{defaultValue:"",value:"none",type:"name",explicitSet:false,valueSet:["Simplex","DuplexFlipShortEdge","DuplexFlipLongEdge","none"],pdfVersion:1.7},PickTrayByPDFSize:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.7},PrintPageRange:{defaultValue:"",value:"",type:"array",explicitSet:false,valueSet:null,pdfVersion:1.7},NumCopies:{defaultValue:1,value:1,type:"integer",explicitSet:false,valueSet:null,pdfVersion:1.7}},u=Object.keys(s),c=[],l=0,h=0,f=0;function d(t,e){var r,n=false;for(r=0;r<t.length;r+=1)t[r]===e&&(n=true);return n}if(void 0===this.internal.viewerpreferences&&(this.internal.viewerpreferences={},this.internal.viewerpreferences.configuration=JSON.parse(JSON.stringify(s)),this.internal.viewerpreferences.isSubscribed=false),n=this.internal.viewerpreferences.configuration,"reset"===e||true===r){var p=u.length;for(f=0;f<p;f+=1)n[u[f]].value=n[u[f]].defaultValue,n[u[f]].explicitSet=false;}if("object"===_typeof$M(e))for(a in e)if(o=e[a],d(u,a)&&void 0!==o){if("boolean"===n[a].type&&"boolean"==typeof o)n[a].value=o;else if("name"===n[a].type&&d(n[a].valueSet,o))n[a].value=o;else if("integer"===n[a].type&&Number.isInteger(o))n[a].value=o;else if("array"===n[a].type){for(l=0;l<o.length;l+=1)if(i=true,1===o[l].length&&"number"==typeof o[l][0])c.push(String(o[l]-1));else if(o[l].length>1){for(h=0;h<o[l].length;h+=1)"number"!=typeof o[l][h]&&(i=false);true===i&&c.push([o[l][0]-1,o[l][1]-1].join(" "));}n[a].value="["+c.join(" ")+"]";}else n[a].value=n[a].defaultValue;n[a].explicitSet=true;}return  false===this.internal.viewerpreferences.isSubscribed&&(this.internal.events.subscribe("putCatalog",function(){var t,e=[];for(t in n) true===n[t].explicitSet&&("name"===n[t].type?e.push("/"+t+" /"+n[t].value):e.push("/"+t+" "+n[t].value));0!==e.length&&this.internal.write("/ViewerPreferences\n<<\n"+e.join("\n")+"\n>>");}),this.internal.viewerpreferences.isSubscribed=true),this.internal.viewerpreferences.configuration=n,this},E.API.addMetadata=function(t,e){return void 0===this.internal.__metadata__&&(this.internal.__metadata__={metadata:t,namespaceUri:null!=e?e:"http://jspdf.default.namespaceuri/",rawXml:"boolean"==typeof e&&e},this.internal.events.subscribe("putCatalog",le),this.internal.events.subscribe("postPutResources",ce)),this},function(t){var e=t.API,r=e.pdfEscape16=function(t,e){for(var r,n=e.metadata.Unicode.widths,i=["","0","00","000","0000"],a=[""],o=0,s=t.length;o<s;++o){if(r=e.metadata.characterToGlyph(t.charCodeAt(o)),e.metadata.glyIdsUsed.push(r),e.metadata.toUnicode[r]=t.charCodeAt(o),-1==n.indexOf(r)&&(n.push(r),n.push([parseInt(e.metadata.widthOfGlyph(r),10)])),"0"==r)return a.join("");r=r.toString(16),a.push(i[4-r.length],r);}return a.join("")},n=function(t){var e,r,n,i,a,o,s;for(a="/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo <<\n  /Registry (Adobe)\n  /Ordering (UCS)\n  /Supplement 0\n>> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000><ffff>\nendcodespacerange",n=[],o=0,s=(r=Object.keys(t).sort(function(t,e){return t-e})).length;o<s;o++)e=r[o],n.length>=100&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar",n=[]),void 0!==t[e]&&null!==t[e]&&"function"==typeof t[e].toString&&(i=("0000"+t[e].toString(16)).slice(-4),e=("0000"+(+e).toString(16)).slice(-4),n.push("<"+e+"><"+i+">"));return n.length&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar\n"),a+"endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend"};e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"Identity-H"===r.encoding){for(var s=r.metadata.Unicode.widths,u=r.metadata.subset.encode(r.metadata.glyIdsUsed,1),c="",l=0;l<u.length;l++)c+=String.fromCharCode(u[l]);var h=a();o({data:c,addLength1:true,objectId:h}),i("endobj");var f=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:f}),i("endobj");var d=a();i("<<"),i("/Type /FontDescriptor"),i("/FontName /"+C(r.fontName)),i("/FontFile2 "+h+" 0 R"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/Flags "+r.metadata.flags),i("/StemV "+r.metadata.stemV),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i(">>"),i("endobj");var p=a();i("<<"),i("/Type /Font"),i("/BaseFont /"+C(r.fontName)),i("/FontDescriptor "+d+" 0 R"),i("/W "+t.API.PDFObject.convert(s)),i("/CIDToGIDMap /Identity"),i("/DW 1000"),i("/Subtype /CIDFontType2"),i("/CIDSystemInfo"),i("<<"),i("/Supplement 0"),i("/Registry (Adobe)"),i("/Ordering ("+r.encoding+")"),i(">>"),i(">>"),i("endobj"),r.objectNumber=a(),i("<<"),i("/Type /Font"),i("/Subtype /Type0"),i("/ToUnicode "+f+" 0 R"),i("/BaseFont /"+C(r.fontName)),i("/Encoding /"+r.encoding),i("/DescendantFonts ["+p+" 0 R]"),i(">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]),e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"WinAnsiEncoding"===r.encoding){for(var s=r.metadata.rawData,u="",c=0;c<s.length;c++)u+=String.fromCharCode(s[c]);var l=a();o({data:u,addLength1:true,objectId:l}),i("endobj");var h=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:h}),i("endobj");var f=a();i("<<"),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i("/StemV "+r.metadata.stemV),i("/Type /FontDescriptor"),i("/FontFile2 "+l+" 0 R"),i("/Flags 96"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/FontName /"+C(r.fontName)),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i(">>"),i("endobj"),r.objectNumber=a();for(var d=0;d<r.metadata.hmtx.widths.length;d++)r.metadata.hmtx.widths[d]=parseInt(r.metadata.hmtx.widths[d]*(1e3/r.metadata.head.unitsPerEm));i("<</Subtype/TrueType/Type/Font/ToUnicode "+h+" 0 R/BaseFont/"+C(r.fontName)+"/FontDescriptor "+f+" 0 R/Encoding/"+r.encoding+" /FirstChar 29 /LastChar 255 /Widths "+t.API.PDFObject.convert(r.metadata.hmtx.widths)+">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]);var i=function(t){var e,n=t.text||"",i=t.x,a=t.y,o=t.options||{},s=t.mutex||{},u=s.pdfEscape,c=s.activeFontKey,l=s.fonts,h=c,f="",d=0,p="",g=l[h].encoding;if("Identity-H"!==l[h].encoding)return {text:n,x:i,y:a,options:o,mutex:s};for(p=n,h=c,Array.isArray(n)&&(p=n[0]),d=0;d<p.length;d+=1)l[h].metadata.hasOwnProperty("cmap")&&(e=l[h].metadata.cmap.unicode.codeMap[p[d].charCodeAt(0)]),e||p[d].charCodeAt(0)<256&&l[h].metadata.hasOwnProperty("Unicode")?f+=p[d]:f+="";var m="";return parseInt(h.slice(1))<14||"WinAnsiEncoding"===g?m=u(f,h).split("").map(function(t){return t.charCodeAt(0).toString(16)}).join(""):"Identity-H"===g&&(m=r(f,l[h])),s.isHex=true,{text:m,x:i,y:a,options:o,mutex:s}};e.events.push(["postProcessText",function(t){var e=t.text||"",r=[],n={text:e,x:t.x,y:t.y,options:t.options,mutex:t.mutex};if(Array.isArray(e)){var a=0;for(a=0;a<e.length;a+=1)Array.isArray(e[a])&&3===e[a].length?r.push([i(Object.assign({},n,{text:e[a][0]})).text,e[a][1],e[a][2]]):r.push(i(Object.assign({},n,{text:e[a]})).text);t.text=r;}else t.text=i(Object.assign({},n,{text:e})).text;}]);}(E),
+function(t){var e=function(t){for(var e=t.length,r=new Uint8Array(e),n=0;n<e;n++)r[n]=t.charCodeAt(n);return r};t.API.events.push(["addFont",function(r){var n=void 0,i=r.font,a=r.instance;if(!i.isStandardFont){if(void 0===a)throw new Error("Font does not exist in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");if("string"!=typeof(n=false===a.existsFileInVFS(i.postScriptName)?a.loadFile(i.postScriptName):a.getFileFromVFS(i.postScriptName)))throw new Error("Font is not stored as string-data in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");!function(r,n){n=/^\x00\x01\x00\x00/.test(n)?e(n):e(f$1(n)),r.metadata=t.API.TTFFont.open(n),r.metadata.Unicode=r.metadata.Unicode||{encoding:{},kerning:{},widths:[]},r.metadata.glyIdsUsed=[0];}(i,n);}}]);}(E),E.API.addSvgAsImage=function(t,e,r,n,a,s,u,c){if(isNaN(e)||isNaN(r))throw o.error("jsPDF.addSvgAsImage: Invalid coordinates",arguments),new Error("Invalid coordinates passed to jsPDF.addSvgAsImage");if(isNaN(n)||isNaN(a))throw o.error("jsPDF.addSvgAsImage: Invalid measurements",arguments),new Error("Invalid measurements (width and/or height) passed to jsPDF.addSvgAsImage");var l=document.createElement("canvas");l.width=n,l.height=a;var h=l.getContext("2d");h.fillStyle="#fff",h.fillRect(0,0,l.width,l.height);var f={ignoreMouse:true,ignoreAnimation:true,ignoreDimensions:true},d=this;return (i.canvg?Promise.resolve(i.canvg):__vitePreload(() => import('./index.es-DtM7keB6.js'),true?[]:void 0)).catch(function(t){return Promise.reject(new Error("Could not load canvg: "+t))}).then(function(t){return t.default?t.default:t}).then(function(e){return e.fromString(h,t,f)},function(){return Promise.reject(new Error("Could not load canvg."))}).then(function(t){return t.render(f)}).then(function(){d.addImage(l.toDataURL("image/jpeg",1),e,r,n,a,u,c);})},E.API.putTotalPages=function(t){var e,r=0;parseInt(this.internal.getFont().id.substr(1),10)<15?(e=new RegExp(t,"g"),r=this.internal.getNumberOfPages()):(e=new RegExp(this.pdfEscape16(t,this.internal.getFont()),"g"),r=this.pdfEscape16(this.internal.getNumberOfPages()+"",this.internal.getFont()));for(var n=1;n<=this.internal.getNumberOfPages();n++)for(var i=0;i<this.internal.pages[n].length;i++)this.internal.pages[n][i]=this.internal.pages[n][i].replace(e,r);return this},E.API.viewerPreferences=function(e,r){var n;e=e||{},r=r||false;var i,a,o,s={HideToolbar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideMenubar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideWindowUI:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},FitWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},CenterWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},DisplayDocTitle:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.4},NonFullScreenPageMode:{defaultValue:"UseNone",value:"UseNone",type:"name",explicitSet:false,valueSet:["UseNone","UseOutlines","UseThumbs","UseOC"],pdfVersion:1.3},Direction:{defaultValue:"L2R",value:"L2R",type:"name",explicitSet:false,valueSet:["L2R","R2L"],pdfVersion:1.3},ViewArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},ViewClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintScaling:{defaultValue:"AppDefault",value:"AppDefault",type:"name",explicitSet:false,valueSet:["AppDefault","None"],pdfVersion:1.6},Duplex:{defaultValue:"",value:"none",type:"name",explicitSet:false,valueSet:["Simplex","DuplexFlipShortEdge","DuplexFlipLongEdge","none"],pdfVersion:1.7},PickTrayByPDFSize:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.7},PrintPageRange:{defaultValue:"",value:"",type:"array",explicitSet:false,valueSet:null,pdfVersion:1.7},NumCopies:{defaultValue:1,value:1,type:"integer",explicitSet:false,valueSet:null,pdfVersion:1.7}},u=Object.keys(s),c=[],l=0,h=0,f=0;function d(t,e){var r,n=false;for(r=0;r<t.length;r+=1)t[r]===e&&(n=true);return n}if(void 0===this.internal.viewerpreferences&&(this.internal.viewerpreferences={},this.internal.viewerpreferences.configuration=JSON.parse(JSON.stringify(s)),this.internal.viewerpreferences.isSubscribed=false),n=this.internal.viewerpreferences.configuration,"reset"===e||true===r){var p=u.length;for(f=0;f<p;f+=1)n[u[f]].value=n[u[f]].defaultValue,n[u[f]].explicitSet=false;}if("object"===_typeof$M(e))for(a in e)if(o=e[a],d(u,a)&&void 0!==o){if("boolean"===n[a].type&&"boolean"==typeof o)n[a].value=o;else if("name"===n[a].type&&d(n[a].valueSet,o))n[a].value=o;else if("integer"===n[a].type&&Number.isInteger(o))n[a].value=o;else if("array"===n[a].type){for(l=0;l<o.length;l+=1)if(i=true,1===o[l].length&&"number"==typeof o[l][0])c.push(String(o[l]-1));else if(o[l].length>1){for(h=0;h<o[l].length;h+=1)"number"!=typeof o[l][h]&&(i=false);true===i&&c.push([o[l][0]-1,o[l][1]-1].join(" "));}n[a].value="["+c.join(" ")+"]";}else n[a].value=n[a].defaultValue;n[a].explicitSet=true;}return  false===this.internal.viewerpreferences.isSubscribed&&(this.internal.events.subscribe("putCatalog",function(){var t,e=[];for(t in n) true===n[t].explicitSet&&("name"===n[t].type?e.push("/"+t+" /"+n[t].value):e.push("/"+t+" "+n[t].value));0!==e.length&&this.internal.write("/ViewerPreferences\n<<\n"+e.join("\n")+"\n>>");}),this.internal.viewerpreferences.isSubscribed=true),this.internal.viewerpreferences.configuration=n,this},E.API.addMetadata=function(t,e){return void 0===this.internal.__metadata__&&(this.internal.__metadata__={metadata:t,namespaceUri:null!=e?e:"http://jspdf.default.namespaceuri/",rawXml:"boolean"==typeof e&&e},this.internal.events.subscribe("putCatalog",le),this.internal.events.subscribe("postPutResources",ce)),this},function(t){var e=t.API,r=e.pdfEscape16=function(t,e){for(var r,n=e.metadata.Unicode.widths,i=["","0","00","000","0000"],a=[""],o=0,s=t.length;o<s;++o){if(r=e.metadata.characterToGlyph(t.charCodeAt(o)),e.metadata.glyIdsUsed.push(r),e.metadata.toUnicode[r]=t.charCodeAt(o),-1==n.indexOf(r)&&(n.push(r),n.push([parseInt(e.metadata.widthOfGlyph(r),10)])),"0"==r)return a.join("");r=r.toString(16),a.push(i[4-r.length],r);}return a.join("")},n=function(t){var e,r,n,i,a,o,s;for(a="/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo <<\n  /Registry (Adobe)\n  /Ordering (UCS)\n  /Supplement 0\n>> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000><ffff>\nendcodespacerange",n=[],o=0,s=(r=Object.keys(t).sort(function(t,e){return t-e})).length;o<s;o++)e=r[o],n.length>=100&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar",n=[]),void 0!==t[e]&&null!==t[e]&&"function"==typeof t[e].toString&&(i=("0000"+t[e].toString(16)).slice(-4),e=("0000"+(+e).toString(16)).slice(-4),n.push("<"+e+"><"+i+">"));return n.length&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar\n"),a+"endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend"};e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"Identity-H"===r.encoding){for(var s=r.metadata.Unicode.widths,u=r.metadata.subset.encode(r.metadata.glyIdsUsed,1),c="",l=0;l<u.length;l++)c+=String.fromCharCode(u[l]);var h=a();o({data:c,addLength1:true,objectId:h}),i("endobj");var f=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:f}),i("endobj");var d=a();i("<<"),i("/Type /FontDescriptor"),i("/FontName /"+C(r.fontName)),i("/FontFile2 "+h+" 0 R"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/Flags "+r.metadata.flags),i("/StemV "+r.metadata.stemV),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i(">>"),i("endobj");var p=a();i("<<"),i("/Type /Font"),i("/BaseFont /"+C(r.fontName)),i("/FontDescriptor "+d+" 0 R"),i("/W "+t.API.PDFObject.convert(s)),i("/CIDToGIDMap /Identity"),i("/DW 1000"),i("/Subtype /CIDFontType2"),i("/CIDSystemInfo"),i("<<"),i("/Supplement 0"),i("/Registry (Adobe)"),i("/Ordering ("+r.encoding+")"),i(">>"),i(">>"),i("endobj"),r.objectNumber=a(),i("<<"),i("/Type /Font"),i("/Subtype /Type0"),i("/ToUnicode "+f+" 0 R"),i("/BaseFont /"+C(r.fontName)),i("/Encoding /"+r.encoding),i("/DescendantFonts ["+p+" 0 R]"),i(">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]),e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"WinAnsiEncoding"===r.encoding){for(var s=r.metadata.rawData,u="",c=0;c<s.length;c++)u+=String.fromCharCode(s[c]);var l=a();o({data:u,addLength1:true,objectId:l}),i("endobj");var h=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:h}),i("endobj");var f=a();i("<<"),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i("/StemV "+r.metadata.stemV),i("/Type /FontDescriptor"),i("/FontFile2 "+l+" 0 R"),i("/Flags 96"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/FontName /"+C(r.fontName)),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i(">>"),i("endobj"),r.objectNumber=a();for(var d=0;d<r.metadata.hmtx.widths.length;d++)r.metadata.hmtx.widths[d]=parseInt(r.metadata.hmtx.widths[d]*(1e3/r.metadata.head.unitsPerEm));i("<</Subtype/TrueType/Type/Font/ToUnicode "+h+" 0 R/BaseFont/"+C(r.fontName)+"/FontDescriptor "+f+" 0 R/Encoding/"+r.encoding+" /FirstChar 29 /LastChar 255 /Widths "+t.API.PDFObject.convert(r.metadata.hmtx.widths)+">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]);var i=function(t){var e,n=t.text||"",i=t.x,a=t.y,o=t.options||{},s=t.mutex||{},u=s.pdfEscape,c=s.activeFontKey,l=s.fonts,h=c,f="",d=0,p="",g=l[h].encoding;if("Identity-H"!==l[h].encoding)return {text:n,x:i,y:a,options:o,mutex:s};for(p=n,h=c,Array.isArray(n)&&(p=n[0]),d=0;d<p.length;d+=1)l[h].metadata.hasOwnProperty("cmap")&&(e=l[h].metadata.cmap.unicode.codeMap[p[d].charCodeAt(0)]),e||p[d].charCodeAt(0)<256&&l[h].metadata.hasOwnProperty("Unicode")?f+=p[d]:f+="";var m="";return parseInt(h.slice(1))<14||"WinAnsiEncoding"===g?m=u(f,h).split("").map(function(t){return t.charCodeAt(0).toString(16)}).join(""):"Identity-H"===g&&(m=r(f,l[h])),s.isHex=true,{text:m,x:i,y:a,options:o,mutex:s}};e.events.push(["postProcessText",function(t){var e=t.text||"",r=[],n={text:e,x:t.x,y:t.y,options:t.options,mutex:t.mutex};if(Array.isArray(e)){var a=0;for(a=0;a<e.length;a+=1)Array.isArray(e[a])&&3===e[a].length?r.push([i(Object.assign({},n,{text:e[a][0]})).text,e[a][1],e[a][2]]):r.push(i(Object.assign({},n,{text:e[a]})).text);t.text=r;}else t.text=i(Object.assign({},n,{text:e})).text;}]);}(E),
 /**
  * @license
  * jsPDF virtual FileSystem functionality
@@ -43650,7 +43901,7 @@ function _toPrimitive$y(t, r) {
   }
   return (String )(t);
 }
-var ErrorBar = /* @__PURE__ */ (function(_React$Component) {
+var ErrorBar = /* @__PURE__ */ function(_React$Component) {
   function ErrorBar2() {
     _classCallCheck$g(this, ErrorBar2);
     return _callSuper$d(this, ErrorBar2, arguments);
@@ -43743,7 +43994,7 @@ var ErrorBar = /* @__PURE__ */ (function(_React$Component) {
       }, errorBars);
     }
   }]);
-})(React.Component);
+}(React.Component);
 _defineProperty$y(ErrorBar, "defaultProps", {
   stroke: "black",
   strokeWidth: 1.5,
@@ -54825,13 +55076,13 @@ var generateCategoricalChart = function generateCategoricalChart2(_ref6) {
       stackGroups
     }, ticksObj), axisObj);
   };
-  var CategoricalChartWrapper = /* @__PURE__ */ (function(_Component) {
+  var CategoricalChartWrapper = /* @__PURE__ */ function(_Component) {
     function CategoricalChartWrapper2(_props) {
       var _props$id, _props$throttleDelay;
       var _this;
       _classCallCheck(this, CategoricalChartWrapper2);
       _this = _callSuper(this, CategoricalChartWrapper2, [_props]);
-      _defineProperty(_this, "eventEmitterSymbol", /* @__PURE__ */ Symbol("rechartsEventEmitter"));
+      _defineProperty(_this, "eventEmitterSymbol", Symbol("rechartsEventEmitter"));
       _defineProperty(_this, "accessibilityManager", new AccessibilityManager());
       _defineProperty(_this, "handleLegendBBoxUpdate", function(box) {
         if (box) {
@@ -55757,7 +56008,7 @@ var generateCategoricalChart = function generateCategoricalChart2(_ref6) {
         }), this.renderClipPath(), renderByOrder(children, this.renderMap)), this.renderLegend(), this.renderTooltip()));
       }
     }]);
-  })(reactExports.Component);
+  }(reactExports.Component);
   _defineProperty(CategoricalChartWrapper, "displayName", chartName);
   _defineProperty(CategoricalChartWrapper, "defaultProps", _objectSpread({
     layout: "horizontal",
@@ -57037,24 +57288,30 @@ function AIConfig() {
 }
 
 const queryClient = new QueryClient();
-const App = () => /* @__PURE__ */ jsxRuntimeExports.jsx(QueryClientProvider, { client: queryClient, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(TooltipProvider, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Toaster$1, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Toaster, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(BrowserRouter, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Routes, { children: [
+function AppRoutes() {
+  useTokenRefresh();
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Routes, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/", element: /* @__PURE__ */ jsxRuntimeExports.jsx(Index, {}) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Route, { path: "/docente", element: /* @__PURE__ */ jsxRuntimeExports.jsx(TeacherLayout, {}), children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/login", element: /* @__PURE__ */ jsxRuntimeExports.jsx(Login, {}) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/no-autorizado", element: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-screen items-center justify-center bg-[#1a0a2e] text-white text-xl", children: "No autorizado" }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Route, { path: "/docente", element: /* @__PURE__ */ jsxRuntimeExports.jsx(ProtectedRoute, { roles: ["docente", "admin"], children: /* @__PURE__ */ jsxRuntimeExports.jsx(TeacherLayout, {}) }), children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { index: true, element: /* @__PURE__ */ jsxRuntimeExports.jsx(TeacherDashboard, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: ":courseId", element: /* @__PURE__ */ jsxRuntimeExports.jsx(TeacherCourse, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: ":courseId/tareas/:assignmentId", element: /* @__PURE__ */ jsxRuntimeExports.jsx(TeacherAssignment, {}) })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/vicerrectorado", element: /* @__PURE__ */ jsxRuntimeExports.jsx(ViceLayout, {}), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { index: true, element: /* @__PURE__ */ jsxRuntimeExports.jsx(ViceDashboard, {}) }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Route, { path: "/sistemas", element: /* @__PURE__ */ jsxRuntimeExports.jsx(SystemLayout, {}), children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/vicerrectorado", element: /* @__PURE__ */ jsxRuntimeExports.jsx(ProtectedRoute, { roles: ["vicerrector", "admin"], children: /* @__PURE__ */ jsxRuntimeExports.jsx(ViceLayout, {}) }), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { index: true, element: /* @__PURE__ */ jsxRuntimeExports.jsx(ViceDashboard, {}) }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Route, { path: "/sistemas", element: /* @__PURE__ */ jsxRuntimeExports.jsx(ProtectedRoute, { roles: ["sistemas", "admin"], children: /* @__PURE__ */ jsxRuntimeExports.jsx(SystemLayout, {}) }), children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { index: true, element: /* @__PURE__ */ jsxRuntimeExports.jsx(SystemDashboard, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "ia", element: /* @__PURE__ */ jsxRuntimeExports.jsx(AIConfig, {}) })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "*", element: /* @__PURE__ */ jsxRuntimeExports.jsx(NotFound, {}) })
-  ] }) })
-] }) });
+  ] });
+}
+const App = () => /* @__PURE__ */ jsxRuntimeExports.jsx(QueryClientProvider, { client: queryClient, children: /* @__PURE__ */ jsxRuntimeExports.jsx(AuthProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(TooltipProvider, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Toaster$1, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Toaster, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(BrowserRouter, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppRoutes, {}) })
+] }) }) });
 
 createRoot(document.getElementById("root")).render(/* @__PURE__ */ jsxRuntimeExports.jsx(App, {}));
 

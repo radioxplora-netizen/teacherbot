@@ -17,10 +17,12 @@ import {
   Target,
   TrendingUp,
   Users,
-  Zap
+  Zap,
+  LogOut
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
 
 // Animated counter hook
 function useCounter(end: number, duration: number = 2000) {
@@ -115,6 +117,88 @@ function StatCard({ value, label, icon: Icon }: { value: string; label: string; 
   );
 }
 
+/** Retorna los botones de acceso según el rol del usuario */
+function RoleButtons() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const role = user?.role;
+
+  // Admin ve todo. Otros roles solo ven su portal.
+  const showDocente = !role || role === 'docente' || role === 'admin';
+  const showVicerrector = !role || role === 'vicerrector' || role === 'admin';
+  const showSistemas = !role || role === 'sistemas' || role === 'admin';
+
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+      {showDocente && (
+        <Button asChild size="lg" className="group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all">
+          <a href={isAuthenticated ? "/docente" : "/login"} className="flex items-center gap-2">
+            <GraduationCap className="size-5" />
+            Portal Docente
+            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+          </a>
+        </Button>
+      )}
+      {showVicerrector && (
+        <Button asChild size="lg" className="bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40">
+          <a href={isAuthenticated ? "/vicerrectorado" : "/login"} className="flex items-center gap-2">
+            <ShieldCheck className="size-5" />
+            Panel Directivo
+          </a>
+        </Button>
+      )}
+      {showSistemas && (
+        <Button asChild size="lg" variant="ghost" className="bg-[#2d1b4e] border border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500">
+          <a href={isAuthenticated ? "/sistemas" : "/login"} className="flex items-center gap-2">
+            <Activity className="size-5" />
+            Sistemas
+          </a>
+        </Button>
+      )}
+      {isAuthenticated && (
+        <Button size="lg" onClick={logout} className="bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 hover:border-red-500">
+          <LogOut className="size-5 mr-2" />
+          Salir
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Header con botón de acceso sensible al rol */
+function HeaderBar() {
+  const { user, isAuthenticated } = useAuth();
+  const accessHref = isAuthenticated
+    ? (user?.role === 'vicerrector' ? '/vicerrectorado' : user?.role === 'sistemas' ? '/sistemas' : '/docente')
+    : '/login';
+  const accessLabel = isAuthenticated ? 'Mi Panel' : 'Acceder';
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#1a0a2e]/90 backdrop-blur-xl">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30">
+            <Brain className="size-5 text-white" />
+          </div>
+          <div>
+            <span className="text-lg font-bold text-white">Oxford IA</span>
+            <span className="ml-2 text-sm text-purple-300">Educación Inteligente</span>
+          </div>
+        </div>
+        <nav className="hidden md:flex items-center gap-6">
+          <a href="#beneficios" className="text-sm text-purple-200 hover:text-white transition-colors">Beneficios</a>
+          <a href="#estadisticas" className="text-sm text-purple-200 hover:text-white transition-colors">Impacto</a>
+          {isAuthenticated && (
+            <span className="text-sm text-orange-400 font-medium">{user?.name}</span>
+          )}
+          <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 hover:from-orange-400 hover:to-orange-500 shadow-lg shadow-orange-500/30">
+            <a href={accessHref}>{accessLabel}</a>
+          </Button>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 const Index = () => {
   const tasksProcessed = useCounter(12847);
   const hoursSaved = useCounter(2156);
@@ -139,27 +223,7 @@ const Index = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#1a0a2e]/90 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/30">
-              <Brain className="size-5 text-white" />
-            </div>
-            <div>
-              <span className="text-lg font-bold text-white">Oxford IA</span>
-              <span className="ml-2 text-sm text-purple-300">Educación Inteligente</span>
-            </div>
-          </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#beneficios" className="text-sm text-purple-200 hover:text-white transition-colors">Beneficios</a>
-            <a href="#estadisticas" className="text-sm text-purple-200 hover:text-white transition-colors">Impacto</a>
-            <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 hover:from-orange-400 hover:to-orange-500 shadow-lg shadow-orange-500/30">
-              <a href="/docente">Acceder</a>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <HeaderBar />
 
       <main>
         {/* Hero Section */}
@@ -202,28 +266,8 @@ const Index = () => {
                 feedback personalizado y decisiones basadas en datos para toda la comunidad educativa.
               </p>
 
-              {/* CTA Buttons */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <Button asChild size="lg" className="group bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/50 transition-all">
-                  <a href="/docente" className="flex items-center gap-2">
-                    <GraduationCap className="size-5" />
-                    Portal Docente
-                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                  </a>
-                </Button>
-                <Button asChild size="lg" className="bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40">
-                  <a href="/vicerrectorado" className="flex items-center gap-2">
-                    <ShieldCheck className="size-5" />
-                    Panel Directivo
-                  </a>
-                </Button>
-                <Button asChild size="lg" variant="ghost" className="bg-[#2d1b4e] border border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500">
-                  <a href="/sistemas" className="flex items-center gap-2">
-                    <Activity className="size-5" />
-                    Sistemas
-                  </a>
-                </Button>
-              </div>
+              {/* CTA Buttons — role-aware */}
+              <RoleButtons />
             </div>
           </div>
 
@@ -403,7 +447,7 @@ const Index = () => {
                   para potenciar el aprendizaje y la enseñanza.
                 </p>
                 <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-white/90 shadow-xl font-bold">
-                  <a href="/docente" className="flex items-center gap-2">
+                  <a href="/login" className="flex items-center gap-2">
                     Comenzar Ahora <ArrowRight className="size-5" />
                   </a>
                 </Button>

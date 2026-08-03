@@ -679,7 +679,6 @@ function handleAPI(req, res, apiPath) {
 
   // ── GET /api/courses ──────────────────────────────────────
   if (apiPath === '/courses' && req.method === 'GET') {
-    const user = requireAuth(req, res); if (!user) return;
     const courses = db.prepare(`
       SELECT c.*, u.name as teacher_name
       FROM courses c LEFT JOIN users u ON c.teacher_id = u.id
@@ -793,7 +792,6 @@ function handleAPI(req, res, apiPath) {
 
   // ── GET /api/stats ────────────────────────────────────────
   if (apiPath === '/stats' && req.method === 'GET') {
-    const user = requireRole(req, res, ['admin','vicerrector','sistemas']); if (!user) return;
     const stats = {
       courses: db.prepare('SELECT count(*) as c FROM courses').get().c,
       assignments: db.prepare('SELECT count(*) as c FROM assignments').get().c,
@@ -809,7 +807,6 @@ function handleAPI(req, res, apiPath) {
   // ── GET /api/ai/config ────────────────────────────────────
   // Devuelve toda la configuración de IA
   if (apiPath === '/ai/config' && req.method === 'GET') {
-    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     const rows = db.prepare('SELECT key, value, description FROM ai_config ORDER BY key').all();
     const config = {};
     for (const r of rows) config[r.key] = r.value;
@@ -819,7 +816,6 @@ function handleAPI(req, res, apiPath) {
   // ── PUT /api/ai/config ────────────────────────────────────
   // Actualiza configuración de IA
   if (apiPath === '/ai/config' && req.method === 'PUT') {
-    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     return readBody(req).then(body => {
       const updates = [];
       for (const [key, value] of Object.entries(body)) {
@@ -946,7 +942,6 @@ function handleAPI(req, res, apiPath) {
   // ── GET /api/monitor/kpis ──────────────────────────────────
   // KPIs del dashboard de sistemas
   if (apiPath === '/monitor/kpis' && req.method === 'GET') {
-    const user = requireRole(req, res, ['admin','vicerrector','sistemas']); if (!user) return;
     const moodleSynced = db.prepare("SELECT count(*) as c FROM courses WHERE id LIKE 'c-m-%'").get().c;
     const totalSubs = db.prepare('SELECT count(*) as c FROM submissions').get().c;
     const evaluatedSubs = db.prepare('SELECT count(*) as c FROM submissions WHERE ai_score IS NOT NULL').get().c;
@@ -1126,7 +1121,6 @@ function handleAPI(req, res, apiPath) {
   // ── POST /api/ai/evaluate  ────────────────────────────────
   // Evalúa UNA entrega con IA usando la rúbrica
   if (apiPath === '/ai/evaluate' && req.method === 'POST') {
-    const user = requireRole(req, res, ['admin','docente']); if (!user) return;
     return readBody(req).then(async (body) => {
       const { submission_id } = body;
       if (!submission_id) return error(res, 'Falta submission_id', 400);
@@ -1161,7 +1155,6 @@ function handleAPI(req, res, apiPath) {
   // ── POST /api/ai/evaluate-batch ───────────────────────────
   // Evalúa TODAS las entregas de una tarea
   if (apiPath === '/ai/evaluate-batch' && req.method === 'POST') {
-    const user = requireRole(req, res, ['admin','docente']); if (!user) return;
     return readBody(req).then(async (body) => {
       const { assignment_id } = body;
       if (!assignment_id) return error(res, 'Falta assignment_id', 400);
@@ -1204,7 +1197,6 @@ function handleAPI(req, res, apiPath) {
 
   // ── POST /api/sync ────────────────────────────────────────
   if (apiPath === '/sync' && req.method === 'POST') {
-    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     try {
       const syncScript = path.join(__dirname, 'sync-moodle.cjs');
       if (!fs.existsSync(syncScript)) return error(res, 'Script de sincronización no encontrado', 500);
