@@ -1,13 +1,7 @@
 # Dependencies
 node_modules/
 
-# Build outputs
-dist/
-dist-js/
-dist-transpiled/
-dist.bak/
-
-# Database files (contain real data)
+# Database files (contain real student data)
 *.db
 *.db-shm
 *.db-wal
@@ -15,17 +9,28 @@ dist.bak/
 # Environment secrets
 .env
 
-# Large media files
+# Moodle config with passwords
+moodle-config.json
+
+# Large media (>5MB)
 *.mp4
 *.tgz
 *.tar.gz
-*.png
-*.jpg
-logo_*.png
+logo_black.png
+logo_solo.png
 
 # Lock files (generated)
 bun.lockb
 pnpm-lock.yaml
+
+# Intermediate build artifacts
+dist-js/
+dist-transpiled/
+dist.bak/
+
+# Student personal data
+data/moodle_sub_*.pdf
+data/submissions/
 
 # IDE
 .vscode/
@@ -38,13 +43,6 @@ pnpm-lock.yaml
 .DS_Store
 Thumbs.db
 
-# Student data (PDFs with personal info)
-data/*.pdf
-public/*.pdf
-ejemplo-web.pdf
-
 # Misc
 *.log
 
-data/submissions/
-moodle-config.json
