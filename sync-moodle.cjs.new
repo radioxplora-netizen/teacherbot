@@ -278,8 +278,9 @@ async function syncAssignments() {
         sortOrder++;
       }
     }
-  }
 
+    }
+  }
 
   console.log(`   ✅ ${rows.length} tareas sincronizadas`);
 }

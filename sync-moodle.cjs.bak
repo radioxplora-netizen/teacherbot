@@ -248,38 +248,20 @@ async function syncAssignments() {
       // Delete old rubric items for this assignment
       tdb.prepare('DELETE FROM rubric_items WHERE assignment_id = ?').run(tbId);
 
-      // Try to load criteria from teacherbot DB ai_config
-      let criteria = [];
-      try {
-        const raw = tdb.prepare("SELECT value FROM ai_config WHERE key = 'rubric_auto_criteria'").get();
-        if (raw && raw.value) {
-          criteria = JSON.parse(raw.value);
-        }
-      } catch(e) {
-        console.log('   ⚠️  No se pudo leer rubric_auto_criteria de ai_config, usando defaults');
-      }
-
-      // Fallback to hardcoded defaults if DB has no config
-      if (!criteria || criteria.length === 0) {
-        criteria = [
-          { criterion: 'Contenido y Precision', weight_pct: 40, description: 'Calidad, correccion y profundidad del contenido presentado.' },
-          { criterion: 'Estructura y Organizacion', weight_pct: 25, description: 'Claridad en la estructura, orden logico y formato.' },
-          { criterion: 'Creatividad y Originalidad', weight_pct: 20, description: 'Aporte personal, ideas originales y creatividad.' },
-          { criterion: 'Presentacion y Ortografia', weight_pct: 15, description: 'Limpieza, ortografia, gramatica y referencias.' },
-        ];
-      }
-
+      // Generate a basic rubric based on total points
       const totalPoints = parseFloat(a.grade) || 100;
-      let sortOrder = 1;
+      const criteria = [
+        { criterion: 'Contenido y Precisión', points: Math.round(totalPoints * 0.4 * 10) / 10, description: 'Calidad, corrección y profundidad del contenido presentado.', sort_order: 1 },
+        { criterion: 'Estructura y Organización', points: Math.round(totalPoints * 0.25 * 10) / 10, description: 'Claridad en la estructura, orden lógico y formato.', sort_order: 2 },
+        { criterion: 'Creatividad y Originalidad', points: Math.round(totalPoints * 0.2 * 10) / 10, description: 'Aporte personal, ideas originales y creatividad.', sort_order: 3 },
+        { criterion: 'Presentación y Ortografía', points: Math.round(totalPoints * 0.15 * 10) / 10, description: 'Limpieza, ortografía, gramática y referencias.', sort_order: 4 },
+      ];
+
       for (const cr of criteria) {
-        const weight = cr.weight_pct || (100 / criteria.length);
-        const points = Math.round(totalPoints * (weight / 100) * 10) / 10;
-        insertRubric.run(tbId, cr.criterion, points, cr.description || '', sortOrder);
-        sortOrder++;
+        insertRubric.run(tbId, cr.criterion, cr.points, cr.description, cr.sort_order);
       }
     }
   }
-
 
   console.log(`   ✅ ${rows.length} tareas sincronizadas`);
 }
