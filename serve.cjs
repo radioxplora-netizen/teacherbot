@@ -1048,6 +1048,24 @@ http.createServer((req, res) => {
     return;
   }
 
+  // Proxy /db to SQLite explorer (read-only)
+  if (urlPath === '/db' || urlPath === '/db/' || urlPath.startsWith('/db/')) {
+    const proxyReq = http.request({
+      hostname: '127.0.0.1',
+      port: 8081,
+      path: urlPath.replace(/^\/db/, '') || '/',
+      method: req.method,
+      headers: { ...req.headers, host: '127.0.0.1:8081' }
+    }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    });
+    proxyReq.on('error', () => { res.writeHead(502); res.end('DB Explorer unavailable'); });
+    req.pipe(proxyReq);
+    return;
+  }
+
+
   // Static files + SPA
   serveStatic(req, res, urlPath);
 }).listen(PORT, () => {
