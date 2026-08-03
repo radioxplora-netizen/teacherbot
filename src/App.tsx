@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import NoAutorizado from "./pages/NoAutorizado";
 import Login from "./pages/Login";
 import { AuthProvider, useTokenRefresh } from "@/lib/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -26,7 +27,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/no-autorizado" element={<div className="flex min-h-screen items-center justify-center bg-[#1a0a2e] text-white text-xl">No autorizado</div>} />
+      <Route path="/no-autorizado" element={<NoAutorizado />} />
 
       {/* Docente */}
       <Route path="/docente" element={<ProtectedRoute roles={["docente","admin"]}><TeacherLayout /></ProtectedRoute>}>

@@ -968,6 +968,10 @@ video {
   width: 5rem;
   height: 5rem;
 }
+.size-24 {
+  width: 6rem;
+  height: 6rem;
+}
 .size-3 {
   width: 0.75rem;
   height: 0.75rem;

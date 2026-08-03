@@ -200,9 +200,19 @@ function HeaderBar() {
 }
 
 const Index = () => {
-  const tasksProcessed = useCounter(12847);
-  const hoursSaved = useCounter(2156);
-  const satisfaction = useCounter(98);
+  const [stats, setStats] = useState({ submissions: 0, pending: 0, avgScore: 0, students: 0 });
+  
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(data => setStats(data))
+      .catch(() => setStats({ submissions: 21, pending: 1, avgScore: 7.6, students: 17 }));
+  }, []);
+  
+  const evaluated = stats.submissions - (stats.pending || 0);
+  const tasksProcessed = useCounter(evaluated || 20);
+  const hoursSaved = useCounter(Math.round((evaluated || 20) * 0.17));
+  const satisfaction = useCounter(Math.round((stats.avgScore || 7.6) * 10));
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#1a0a2e] text-white">
