@@ -44,6 +44,128 @@ const MIME = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// AUTH MODULE — JWT + httpOnly Cookies + Refresh Token Rotation
+// ═══════════════════════════════════════════════════════════════
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const ACCESS_TOKEN_EXPIRY = '15m';
+const REFRESH_TOKEN_DAYS = 7;
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_DURATION_MINUTES = 30;
+const BCRYPT_ROUNDS = 12;
+
+// ── Auth Helpers ─────────────────────────────────────────────
+
+function hashPassword(plain) {
+  return bcrypt.hashSync(plain, BCRYPT_ROUNDS);
+}
+
+function verifyPassword(plain, hash) {
+  try { return bcrypt.compareSync(plain, hash); }
+  catch(e) { return false; }
+}
+
+function generateTokens(user) {
+  const accessToken = jwt.sign(
+    { sub: user.id, role: user.role, name: user.name },
+    JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRY }
+  );
+  
+  const refreshToken = crypto.randomBytes(48).toString('hex');
+  const refreshHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  
+  db.prepare(`INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
+    VALUES (?, ?, ?, datetime('now', '+` + REFRESH_TOKEN_DAYS + ` days'))`)
+    .run(crypto.randomUUID(), user.id, refreshHash);
+  
+  return { accessToken, refreshToken };
+}
+
+function verifyAccessToken(token) {
+  try { return jwt.verify(token, JWT_SECRET); }
+  catch(e) { return null; }
+}
+
+// ── Auth Middleware ───────────────────────────────────────────
+
+function parseAuthCookie(req) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+function requireAuth(req, res) {
+  const token = parseAuthCookie(req);
+  if (!token) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'No autenticado' }));
+    return null;
+  }
+  
+  const payload = verifyAccessToken(token);
+  if (!payload) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Token expirado o invalido' }));
+    return null;
+  }
+  
+  return payload;
+}
+
+function requireRole(req, res, allowedRoles) {
+  const user = requireAuth(req, res);
+  if (!user) return null;
+  
+  if (!allowedRoles.includes(user.role)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'No autorizado para este recurso' }));
+    return null;
+  }
+  
+  return user;
+}
+
+function auditLog(userId, action, entity, entityId, req) {
+  if (!db) return;
+  try {
+    db.prepare(`INSERT INTO audit_log (user_id, action, entity, entity_id, ip_address, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(userId, action, entity || null, entityId || null,
+        req.headers['x-forwarded-for'] || req.socket.remoteAddress || '',
+        req.headers['user-agent'] || '');
+  } catch(e) { /* silently ignore audit errors */ }
+}
+
+// ── Rate Limiting ────────────────────────────────────────────
+
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip, maxRequests = 20, windowMs = 60000) {
+  const now = Date.now();
+  let entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + windowMs };
+    rateLimitMap.set(ip, entry);
+  }
+  entry.count++;
+  return entry.count <= maxRequests;
+}
+
+// Clean rate limit map every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
+
+
+// ═══════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════
 function json(res, data, status = 200) {
@@ -428,8 +550,136 @@ function handleAPI(req, res, apiPath) {
     return true;
   }
 
+
+  // ═══════════════════════════════════════════════════════════════
+  // AUTH ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════
+
+  // ── POST /api/auth/login ──────────────────────────────────────
+  if (apiPath === '/auth/login' && req.method === 'POST') {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (!checkRateLimit(ip, 10, 60000)) {
+      return error(res, 'Demasiados intentos. Espere un minuto.', 429);
+    }
+    return readBody(req).then(body => {
+      const { email, password } = body;
+      if (!email || !password) return error(res, 'Email y contraseña requeridos', 400);
+      
+      const user = db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email);
+      if (!user) return error(res, 'Credenciales inválidas', 401);
+      
+      if (user.locked_until && new Date(user.locked_until) > new Date()) {
+        return error(res, 'Cuenta bloqueada temporalmente (' + LOCK_DURATION_MINUTES + ' min).', 423);
+      }
+      
+      if (!user.password_hash) return error(res, 'Cuenta no configurada para login', 401);
+      
+      if (!verifyPassword(password, user.password_hash)) {
+        const attempts = (user.failed_attempts || 0) + 1;
+        if (attempts >= MAX_FAILED_ATTEMPTS) {
+          db.prepare("UPDATE users SET failed_attempts=?, locked_until=datetime('now','+" + LOCK_DURATION_MINUTES + " minutes') WHERE id=?").run(attempts, user.id);
+        } else {
+          db.prepare('UPDATE users SET failed_attempts=? WHERE id=?').run(attempts, user.id);
+        }
+        return error(res, 'Credenciales inválidas', 401);
+      }
+      
+      db.prepare("UPDATE users SET failed_attempts=0, locked_until=NULL, last_login=datetime('now') WHERE id=?").run(user.id);
+      
+      const tokens = generateTokens(user);
+      auditLog(user.id, 'login', 'user', user.id, req);
+      
+      const cookieFlags = 'HttpOnly; Secure; SameSite=Lax; Path=/';
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': [
+          'token=' + tokens.accessToken + '; ' + cookieFlags + '; Max-Age=900',
+          'refreshToken=' + tokens.refreshToken + '; ' + cookieFlags + '; Max-Age=604800'
+        ]
+      });
+      
+      res.end(JSON.stringify({
+        user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar_url: user.avatar_url }
+      }));
+    }).catch(e => error(res, 'Error al leer body'));
+  }
+
+  // ── POST /api/auth/refresh ────────────────────────────────────
+  if (apiPath === '/auth/refresh' && req.method === 'POST') {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/refreshToken=([^;]+)/);
+    if (!match) return error(res, 'No refresh token', 401);
+    
+    const refreshHash = crypto.createHash('sha256').update(match[1]).digest('hex');
+    const stored = db.prepare("SELECT * FROM refresh_tokens WHERE token_hash=? AND revoked=0 AND expires_at > datetime('now')").get(refreshHash);
+    if (!stored) return error(res, 'Refresh token inválido o expirado', 401);
+    
+    const user = db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(stored.user_id);
+    if (!user) return error(res, 'Usuario no encontrado', 401);
+    
+    db.prepare('UPDATE refresh_tokens SET revoked=1 WHERE id=?').run(stored.id);
+    
+    const tokens = generateTokens(user);
+    auditLog(user.id, 'token_refresh', 'user', user.id, req);
+    
+    const cookieFlags = 'HttpOnly; Secure; SameSite=Lax; Path=/';
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': [
+        'token=' + tokens.accessToken + '; ' + cookieFlags + '; Max-Age=900',
+        'refreshToken=' + tokens.refreshToken + '; ' + cookieFlags + '; Max-Age=604800'
+      ]
+    });
+    res.end(JSON.stringify({ ok: true }));
+  }
+
+  // ── POST /api/auth/logout ─────────────────────────────────────
+  if (apiPath === '/auth/logout' && req.method === 'POST') {
+    const cookie = req.headers.cookie || '';
+    const refreshMatch = cookie.match(/refreshToken=([^;]+)/);
+    if (refreshMatch) {
+      const refreshHash = crypto.createHash('sha256').update(refreshMatch[1]).digest('hex');
+      db.prepare('UPDATE refresh_tokens SET revoked=1 WHERE token_hash=?').run(refreshHash);
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': [
+        'token=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+        'refreshToken=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0'
+      ]
+    });
+    res.end(JSON.stringify({ ok: true }));
+  }
+
+  // ── GET /api/auth/me ──────────────────────────────────────────
+  if (apiPath === '/auth/me' && req.method === 'GET') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const full = db.prepare('SELECT id, name, email, role, avatar_url, last_login FROM users WHERE id=?').get(user.sub);
+    if (!full) return error(res, 'Usuario no encontrado', 404);
+    return json(res, full);
+  }
+
+  // ── PUT /api/auth/password ────────────────────────────────────
+  if (apiPath === '/auth/password' && req.method === 'PUT') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    return readBody(req).then(body => {
+      const { currentPassword, newPassword } = body;
+      if (!currentPassword || !newPassword) return error(res, 'Contraseñas requeridas', 400);
+      if (newPassword.length < 8) return error(res, 'Mínimo 8 caracteres', 400);
+      const u = db.prepare('SELECT password_hash FROM users WHERE id=?').get(user.sub);
+      if (!verifyPassword(currentPassword, u.password_hash)) return error(res, 'Contraseña actual incorrecta', 401);
+      db.prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?').run(hashPassword(newPassword), user.sub);
+      auditLog(user.sub, 'change_password', 'user', user.sub, req);
+      return json(res, { ok: true });
+    }).catch(e => error(res, 'Error al leer body'));
+  }
+
+
   // ── GET /api/courses ──────────────────────────────────────
   if (apiPath === '/courses' && req.method === 'GET') {
+    const user = requireAuth(req, res); if (!user) return;
     const courses = db.prepare(`
       SELECT c.*, u.name as teacher_name
       FROM courses c LEFT JOIN users u ON c.teacher_id = u.id
@@ -543,6 +793,7 @@ function handleAPI(req, res, apiPath) {
 
   // ── GET /api/stats ────────────────────────────────────────
   if (apiPath === '/stats' && req.method === 'GET') {
+    const user = requireRole(req, res, ['admin','vicerrector','sistemas']); if (!user) return;
     const stats = {
       courses: db.prepare('SELECT count(*) as c FROM courses').get().c,
       assignments: db.prepare('SELECT count(*) as c FROM assignments').get().c,
@@ -558,6 +809,7 @@ function handleAPI(req, res, apiPath) {
   // ── GET /api/ai/config ────────────────────────────────────
   // Devuelve toda la configuración de IA
   if (apiPath === '/ai/config' && req.method === 'GET') {
+    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     const rows = db.prepare('SELECT key, value, description FROM ai_config ORDER BY key').all();
     const config = {};
     for (const r of rows) config[r.key] = r.value;
@@ -567,6 +819,7 @@ function handleAPI(req, res, apiPath) {
   // ── PUT /api/ai/config ────────────────────────────────────
   // Actualiza configuración de IA
   if (apiPath === '/ai/config' && req.method === 'PUT') {
+    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     return readBody(req).then(body => {
       const updates = [];
       for (const [key, value] of Object.entries(body)) {
@@ -693,6 +946,7 @@ function handleAPI(req, res, apiPath) {
   // ── GET /api/monitor/kpis ──────────────────────────────────
   // KPIs del dashboard de sistemas
   if (apiPath === '/monitor/kpis' && req.method === 'GET') {
+    const user = requireRole(req, res, ['admin','vicerrector','sistemas']); if (!user) return;
     const moodleSynced = db.prepare("SELECT count(*) as c FROM courses WHERE id LIKE 'c-m-%'").get().c;
     const totalSubs = db.prepare('SELECT count(*) as c FROM submissions').get().c;
     const evaluatedSubs = db.prepare('SELECT count(*) as c FROM submissions WHERE ai_score IS NOT NULL').get().c;
@@ -872,6 +1126,7 @@ function handleAPI(req, res, apiPath) {
   // ── POST /api/ai/evaluate  ────────────────────────────────
   // Evalúa UNA entrega con IA usando la rúbrica
   if (apiPath === '/ai/evaluate' && req.method === 'POST') {
+    const user = requireRole(req, res, ['admin','docente']); if (!user) return;
     return readBody(req).then(async (body) => {
       const { submission_id } = body;
       if (!submission_id) return error(res, 'Falta submission_id', 400);
@@ -906,6 +1161,7 @@ function handleAPI(req, res, apiPath) {
   // ── POST /api/ai/evaluate-batch ───────────────────────────
   // Evalúa TODAS las entregas de una tarea
   if (apiPath === '/ai/evaluate-batch' && req.method === 'POST') {
+    const user = requireRole(req, res, ['admin','docente']); if (!user) return;
     return readBody(req).then(async (body) => {
       const { assignment_id } = body;
       if (!assignment_id) return error(res, 'Falta assignment_id', 400);
@@ -948,6 +1204,7 @@ function handleAPI(req, res, apiPath) {
 
   // ── POST /api/sync ────────────────────────────────────────
   if (apiPath === '/sync' && req.method === 'POST') {
+    const user = requireRole(req, res, ['admin','sistemas']); if (!user) return;
     try {
       const syncScript = path.join(__dirname, 'sync-moodle.cjs');
       if (!fs.existsSync(syncScript)) return error(res, 'Script de sincronización no encontrado', 500);
@@ -1049,11 +1306,11 @@ http.createServer((req, res) => {
   }
 
   // Proxy /db to SQLite explorer (read-only)
-  if (urlPath === '/db' || urlPath === '/db/' || urlPath.startsWith('/db/')) {
+  if (urlPath === '/db' || urlPath === '/db/' || urlPath.startsWith('/db/') || urlPath === '/-' || urlPath.startsWith('/-/')) {
     const proxyReq = http.request({
       hostname: '127.0.0.1',
       port: 8081,
-      path: urlPath.replace(/^\/db/, '') || '/',
+      path: urlPath === '/db' ? '/teacherbot/' : urlPath.replace(/^\/db\/?/, '/teacherbot/'),
       method: req.method,
       headers: { ...req.headers, host: '127.0.0.1:8081' }
     }, (proxyRes) => {
@@ -1066,8 +1323,18 @@ http.createServer((req, res) => {
   }
 
 
+  // Serve standalone login page
+  if (urlPath === '/login' || urlPath === '/login.html') {
+    try {
+      const loginHtml = fs.readFileSync(path.join(ROOT, 'login.html'));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(loginHtml);
+      return;
+    } catch(e) { /* fall through */ }
+  }
   // Static files + SPA
   serveStatic(req, res, urlPath);
+
 }).listen(PORT, () => {
   console.log('TeacherBot server on :' + PORT);
   console.log('  API: /api/courses, /api/assignments, /api/stats, /api/health');
