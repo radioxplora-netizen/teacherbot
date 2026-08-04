@@ -162,14 +162,14 @@ export default function TeacherAssignment() {
           <div className="space-y-4">
             {/* Top action buttons */}
             <div className="flex flex-wrap gap-2">
-              {selectedSub?.file_url && (
+              {selectedSub?.file_url && !selectedSub.file_url.startsWith('online_text:') && (
                 <Button
                   variant="outline"
                   size="sm"
                   asChild
                 >
                   <a href={selectedSub.file_url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="size-4 mr-1" /> Ver PDF
+                    <ExternalLink className="size-4 mr-1" /> {selectedSub.file_url.endsWith('.pdf') ? 'Ver PDF' : 'Ver entrega'}
                   </a>
                 </Button>
               )}
