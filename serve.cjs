@@ -1243,6 +1243,61 @@ function handleAPI(req, res, apiPath) {
     return json(res, sub);
   }
 
+  // ── GET /api/sync/status ──────────────────────────────────
+  if (apiPath === '/sync/status' && req.method === 'GET') {
+    const lastSync = db.prepare(`
+      SELECT * FROM sync_logs ORDER BY id DESC LIMIT 1
+    `).get();
+    
+    const running = db.prepare(
+      'SELECT * FROM sync_logs WHERE status = ? ORDER BY id DESC LIMIT 1'
+    ).get('running');
+    
+    const stats = {
+      total_syncs: db.prepare('SELECT COUNT(*) as c FROM sync_logs').get().c,
+      total_errors: db.prepare('SELECT COALESCE(SUM(errors_count),0) as c FROM sync_logs').get().c,
+      total_pdfs: db.prepare('SELECT COALESCE(SUM(pdfs_downloaded),0) as c FROM sync_logs').get().c,
+      avg_duration_ms: db.prepare('SELECT COALESCE(ROUND(AVG(duration_ms)),0) as c FROM sync_logs WHERE status != ?').get('running').c
+    };
+    
+    return json(res, {
+      last_sync: lastSync || null,
+      running: running || null,
+      stats
+    });
+  }
+
+  // ── GET /api/sync/logs ────────────────────────────────────
+  if (apiPath === '/sync/logs' && req.method === 'GET') {
+    const url = new URL(req.url, 'http://localhost');
+    const limit = parseInt(url.searchParams.get('limit')) || 20;
+    const offset = parseInt(url.searchParams.get('offset')) || 0;
+    
+    const logs = db.prepare(`
+      SELECT id, started_at, finished_at, status, trigger,
+             courses_processed, submissions_total, submissions_created,
+             pdfs_downloaded, errors_count, duration_ms
+      FROM sync_logs ORDER BY id DESC LIMIT ? OFFSET ?
+    `).all(limit, offset);
+    
+    const total = db.prepare('SELECT COUNT(*) as c FROM sync_logs').get().c;
+    
+    return json(res, { logs, total, limit, offset });
+  }
+
+  // ── GET /api/sync/logs/:id ────────────────────────────────
+  const syncLogMatch = apiPath.match(/^\/sync\/logs\/(\d+)$/);
+  if (syncLogMatch && req.method === 'GET') {
+    const log = db.prepare('SELECT * FROM sync_logs WHERE id = ?').get(syncLogMatch[1]);
+    if (!log) return error(res, 'Log no encontrado', 404);
+    
+    try { log.errors = JSON.parse(log.errors_json || '[]'); } catch(e) { log.errors = []; }
+    try { log.details = JSON.parse(log.details_json || '{}'); } catch(e) { log.details = {}; }
+    try { log.config = JSON.parse(log.config_json || '{}'); } catch(e) { log.config = {}; }
+    
+    return json(res, log);
+  }
+
   // ── POST /api/sync ────────────────────────────────────────
   if (apiPath === '/sync' && req.method === 'POST') {
     try {
@@ -1381,6 +1436,6 @@ http.createServer((req, res) => {
   console.log('TeacherBot server on :' + PORT);
   console.log('  API: /api/courses, /api/assignments, /api/stats, /api/health');
   console.log('  AI:  POST /api/ai/evaluate, GET /api/ai/evaluate-stream/:id, POST /api/ai/evaluate-batch');
-  console.log('  Sync: POST /api/sync');
+  console.log('  Sync: GET /api/sync/status, GET /api/sync/logs, POST /api/sync');
   console.log('  DB: ' + (db ? 'connected (read-write)' : 'unavailable'));
 });

@@ -32,6 +32,51 @@ const tdb = new Database(teacherbot.db);
 tdb.pragma('journal_mode = WAL');
 tdb.pragma('foreign_keys = ON');
 
+// ── Sync log counters ───────────────────────────────────────────────────
+let syncLogId = null;
+const syncStartedAt = Date.now();
+const counters = {
+  courses_total: 0, courses_processed: 0,
+  assignments_total: 0, assignments_created: 0,
+  students_total: 0, students_created: 0,
+  submissions_total: 0, submissions_created: 0, submissions_updated: 0,
+  pdfs_downloaded: 0, pdfs_optimized: 0,
+  errors: []
+};
+
+function initSyncLog(trigger) {
+  const stmt = tdb.prepare(`INSERT INTO sync_logs 
+    (status, trigger, moodle_url, started_at)
+    VALUES ('running', ?, ?, datetime('now'))`);
+  const result = stmt.run(trigger || 'manual', `${moodle.db.host}/${moodle.db.database}`);
+  syncLogId = result.lastInsertRowid;
+  console.log('📋 Sync log #' + syncLogId + ' iniciado');
+}
+
+function finalizeSyncLog(status) {
+  if (!syncLogId) return;
+  const duration = Date.now() - syncStartedAt;
+  tdb.prepare(`UPDATE sync_logs SET
+    status = ?, finished_at = datetime('now'), duration_ms = ?,
+    courses_total = ?, courses_processed = ?,
+    assignments_total = ?, assignments_created = ?,
+    students_total = ?, students_created = ?,
+    submissions_total = ?, submissions_created = ?, submissions_updated = ?,
+    pdfs_downloaded = ?, pdfs_optimized = ?,
+    errors_count = ?, errors_json = ?
+    WHERE id = ?`).run(
+    status, duration,
+    counters.courses_total, counters.courses_processed,
+    counters.assignments_total, counters.assignments_created,
+    counters.students_total, counters.students_created,
+    counters.submissions_total, counters.submissions_created, counters.submissions_updated,
+    counters.pdfs_downloaded, counters.pdfs_optimized,
+    counters.errors.length, JSON.stringify(counters.errors.slice(0, 50)),
+    syncLogId
+  );
+  console.log('📋 Sync log #' + syncLogId + ' finalizado: ' + status + ' (' + duration + 'ms)');
+}
+
 const pg = new PgClient({
   host: moodle.db.host,
   port: moodle.db.port,
@@ -120,6 +165,8 @@ async function syncUsers() {
     }
   }
 
+  counters.students_total = rows.filter(u => roleMap(u.role) === 'estudiante').length;
+  counters.students_created = rows.length;
   console.log(`   ✅ ${rows.length} usuarios sincronizados`);
 }
 
@@ -163,6 +210,8 @@ async function syncCourses() {
     idMap.courses[c.id] = tbId;
   }
 
+  counters.courses_total = rows.length;
+  counters.courses_processed = rows.length;
   console.log(`   ✅ ${rows.length} cursos sincronizados`);
 }
 
@@ -281,6 +330,8 @@ async function syncAssignments() {
   }
 
 
+  counters.assignments_total = rows.length;
+  counters.assignments_created = rows.length;
   console.log(`   ✅ ${rows.length} tareas sincronizadas`);
 }
 
@@ -382,6 +433,8 @@ async function syncSubmissions() {
     count++;
   }
 
+  counters.submissions_total = count;
+  counters.submissions_created = count;
   console.log(`   ✅ ${count} entregas sincronizadas (${Object.keys(gradeMap).length} con calificación)`);
 }
 
@@ -443,6 +496,7 @@ async function syncFiles() {
     }
   }
 
+  counters.pdfs_downloaded = copied;
   console.log('   ✅ ' + copied + ' archivos importados de Moodle');
 }
 function printStats() {
@@ -460,15 +514,19 @@ function printStats() {
 // Main
 // ═══════════════════════════════════════════════════════════════════════════
 async function main() {
+  const trigger = process.argv.includes('--cron') ? 'cron' : (process.argv.includes('--api') ? 'api' : 'manual');
+  
   console.log('╔══════════════════════════════════════════╗');
   console.log('║   TeacherBot ← Moodle Sync Engine       ║');
   console.log('╚══════════════════════════════════════════╝');
-  console.log(`\n🔗 Moodle ${moodleVer} → ${moodle.db.host}/${moodle.db.database}`);
-  console.log(`📁 TeacherBot DB: ${teacherbot.db}`);
+  console.log('\n🔗 Moodle ' + moodleVer + ' → ' + moodle.db.host + '/' + moodle.db.database);
+  console.log('📁 TeacherBot DB: ' + teacherbot.db);
 
   try {
     await pg.connect();
     console.log('✅ PostgreSQL conectado\n');
+    
+    initSyncLog(trigger);
 
     await syncUsers();
     await syncCourses();
@@ -478,8 +536,13 @@ async function main() {
     await syncFiles();
 
     printStats();
+    finalizeSyncLog('completed');
   } catch (err) {
     console.error('❌ Error:', err.message);
+    if (syncLogId) {
+      counters.errors.push({ message: err.message, stack: err.stack?.substring(0, 500) });
+      finalizeSyncLog('failed');
+    }
     process.exit(1);
   } finally {
     await pg.end();
