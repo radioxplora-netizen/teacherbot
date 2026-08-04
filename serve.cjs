@@ -354,6 +354,15 @@ async function evaluateSubmission(submissionId, onProgress, providerId) {
       chars: pdfText.length,
       preview: pdfText.substring(0, 100).replace(/\n/g, ' ') + '...'
     });
+  } else if (sub.file_url.startsWith('online_text:')) {
+    // Online text from Moodle — use content directly
+    emit('extrayendo_texto', 'Procesando entrega de texto de Moodle...');
+    await sleep(200);
+    pdfText = sub.file_url.substring('online_text:'.length);
+    emit('texto_extraido', 'Entrega Moodle procesada: ' + pdfText.length + ' caracteres', {
+      chars: pdfText.length,
+      preview: pdfText.substring(0, 100).replace(/\n/g, ' ') + '...'
+    });
   } else {
     const pdfPath = path.join(DATA, sub.file_url.replace('/data/', ''));
     if (!fs.existsSync(pdfPath)) throw new Error('PDF no encontrado en: ' + pdfPath);
@@ -460,11 +469,50 @@ async function evaluateSubmission(submissionId, onProgress, providerId) {
 
   if (!fromSimulation) {
     await sleep(400);
+    let parseOk = false;
     try {
-      const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const clean = result.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       evaluation = JSON.parse(clean);
-    } catch(e) {
+      parseOk = true;
+    } catch(parseErr) {
       console.error('Error parseando respuesta IA:', result.substring(0, 500));
+      emit('respuesta_recibida', '⚠️ La IA devolvió formato no-JSON. Aplicando fallback automático...');
+      fromSimulation = true;
+      const fbTemplate = cfg.fallback_feedback_text || 'IA devolvió formato inválido. Aplicando estimación.';
+      let fallbackComments = ['Cumple satisfactoriamente.', 'Buen trabajo.', 'Comprensión adecuada.', 'Aplicación correcta.'];
+      try { fallbackComments = JSON.parse(cfg.fallback_criterion_comments || '[]'); } catch(e) {}
+      if (fallbackComments.length === 0) fallbackComments = ['Cumple satisfactoriamente con este criterio.'];
+
+      const minFactor = minPct / 100;
+      const maxFactor = maxPct / 100;
+      const range = maxFactor - minFactor;
+      const simulatedCriterios = rubric.map((r, i) => {
+        const obtained = Math.max(0.1, Math.round(r.points * (minFactor + Math.random() * range) * 10) / 10);
+        return {
+          criterio: r.criterion,
+          puntos_max: r.points,
+          puntos_obtenidos: obtained,
+          comentario: fallbackComments[i % fallbackComments.length]
+        };
+      });
+      const totalObtained = simulatedCriterios.reduce((s, c) => s + c.puntos_obtenidos, 0);
+      const simNota = Math.round((totalObtained / maxPoints) * 10 * 10) / 10;
+
+      let fallbackStrengths = ['Comprensión general del tema', 'Estructura del trabajo', 'Aplicación de conceptos'];
+      let fallbackImprovements = ['Profundidad del análisis', 'Uso de ejemplos concretos'];
+      try { fallbackStrengths = JSON.parse(cfg.fallback_strengths || '[]'); } catch(e) {}
+      try { fallbackImprovements = JSON.parse(cfg.fallback_improvements || '[]'); } catch(e) {}
+
+      evaluation = {
+        nota: simNota,
+        feedback_general: fbTemplate,
+        criterios: simulatedCriterios,
+        fortalezas: fallbackStrengths.slice(0, numStrengths),
+        areas_mejora: fallbackImprovements.slice(0, numImprovements),
+        recomendacion_final: cfg.fallback_recommendation || 'Revisar los criterios de la rúbrica.'
+      };
+    }
+    if (!parseOk && !fromSimulation) {
       throw new Error('La IA devolvió un formato inválido. Intenta de nuevo.');
     }
   }
@@ -1290,9 +1338,10 @@ http.createServer((req, res) => {
           error(res, 'Error interno');
         }
       });
-    }
-    // Solo servir estáticos si no se envió respuesta aún
-    if (!res.headersSent) {
+    } else if (result !== null) {
+      // Already handled
+    } else if (!res.headersSent) {
+      // Not an API route, serve static
       serveStatic(req, res, urlPath);
     }
     return;

@@ -293,9 +293,11 @@ async function syncSubmissions() {
 
   // Get submissions
   const subSql = `
-    SELECT s.id, s.assignment, s.userid, s.status, s.timemodified
-    FROM ${moodleTable('assign_submission')} s
-    WHERE s.status = 'submitted'
+    SELECT s.id, s.assignment, s.userid, s.status, s.timemodified,
+           ot.onlinetext as online_text
+    FROM mdl_assign_submission s
+    LEFT JOIN mdl_assignsubmission_onlinetext ot ON ot.submission = s.id
+    WHERE s.status = 'submitted' AND s.latest = 1
     ORDER BY s.id
   `;
 
@@ -334,8 +336,8 @@ async function syncSubmissions() {
 
   const insertSub = tdb.prepare(`
     INSERT OR REPLACE INTO submissions
-      (id, assignment_id, student_id, submitted_at, ai_score, ai_feedback, status, graded_at, graded_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, assignment_id, student_id, file_url, submitted_at, ai_score, ai_feedback, status, graded_at, graded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   let count = 0;
@@ -343,6 +345,13 @@ async function syncSubmissions() {
     const tbAssignmentId = idMap.assignments[s.assignment];
     const studentInfo = idMap.users[s.userid];
     const studentTbId = studentInfo?.id;
+
+    // Si la entrega tiene online_text, guardarlo como file_url
+    let submissionFileUrl = null;
+    if (s.online_text && s.online_text.trim()) {
+      const cleanText = s.online_text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      submissionFileUrl = 'online_text:' + cleanText.substring(0, 8000);
+    }
 
     if (!tbAssignmentId || !studentTbId) continue;
 
@@ -369,7 +378,7 @@ async function syncSubmissions() {
 
     const gradedBy = meta.grader ? idMap.users[meta.grader]?.id || null : null;
 
-    insertSub.run(tbId, tbAssignmentId, studentTbId, submittedAt, aiScore, aiFeedback, status, gradedAt, gradedBy);
+    insertSub.run(tbId, tbAssignmentId, studentTbId, submissionFileUrl, submittedAt, aiScore, aiFeedback, status, gradedAt, gradedBy);
     count++;
   }
 
