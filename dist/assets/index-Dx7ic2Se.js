@@ -2268,6 +2268,25 @@ const ArrowRight = createLucideIcon("ArrowRight", [
  */
 
 
+const BookMarked = createLucideIcon("BookMarked", [
+  ["path", { d: "M10 2v8l3-3 3 3V2", key: "sqw3rj" }],
+  [
+    "path",
+    {
+      d: "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20",
+      key: "k3hazp"
+    }
+  ]
+]);
+
+/**
+ * @license lucide-react v0.462.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
 const BookOpen = createLucideIcon("BookOpen", [
   ["path", { d: "M12 7v14", key: "1akyts" }],
   [
@@ -13246,6 +13265,110 @@ function SpotlightSurface({ children, className, as = "div" }) {
   );
 }
 
+var PROGRESS_NAME = "Progress";
+var DEFAULT_MAX = 100;
+var [createProgressContext] = createContextScope(PROGRESS_NAME);
+var [ProgressProvider, useProgressContext] = createProgressContext(PROGRESS_NAME);
+var Progress$1 = reactExports.forwardRef(
+  (props, forwardedRef) => {
+    const {
+      __scopeProgress,
+      value: valueProp = null,
+      max: maxProp,
+      getValueLabel = defaultGetValueLabel,
+      ...progressProps
+    } = props;
+    if ((maxProp || maxProp === 0) && !isValidMaxNumber(maxProp)) {
+      console.error(getInvalidMaxError(`${maxProp}`, "Progress"));
+    }
+    const max = isValidMaxNumber(maxProp) ? maxProp : DEFAULT_MAX;
+    if (valueProp !== null && !isValidValueNumber(valueProp, max)) {
+      console.error(getInvalidValueError(`${valueProp}`, "Progress"));
+    }
+    const value = isValidValueNumber(valueProp, max) ? valueProp : null;
+    const valueLabel = isNumber$4(value) ? getValueLabel(value, max) : void 0;
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressProvider, { scope: __scopeProgress, value, max, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Primitive.div,
+      {
+        "aria-valuemax": max,
+        "aria-valuemin": 0,
+        "aria-valuenow": isNumber$4(value) ? value : void 0,
+        "aria-valuetext": valueLabel,
+        role: "progressbar",
+        "data-state": getProgressState(value, max),
+        "data-value": value ?? void 0,
+        "data-max": max,
+        ...progressProps,
+        ref: forwardedRef
+      }
+    ) });
+  }
+);
+Progress$1.displayName = PROGRESS_NAME;
+var INDICATOR_NAME = "ProgressIndicator";
+var ProgressIndicator = reactExports.forwardRef(
+  (props, forwardedRef) => {
+    const { __scopeProgress, ...indicatorProps } = props;
+    const context = useProgressContext(INDICATOR_NAME, __scopeProgress);
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Primitive.div,
+      {
+        "data-state": getProgressState(context.value, context.max),
+        "data-value": context.value ?? void 0,
+        "data-max": context.max,
+        ...indicatorProps,
+        ref: forwardedRef
+      }
+    );
+  }
+);
+ProgressIndicator.displayName = INDICATOR_NAME;
+function defaultGetValueLabel(value, max) {
+  return `${Math.round(value / max * 100)}%`;
+}
+function getProgressState(value, maxValue) {
+  return value == null ? "indeterminate" : value === maxValue ? "complete" : "loading";
+}
+function isNumber$4(value) {
+  return typeof value === "number";
+}
+function isValidMaxNumber(max) {
+  return isNumber$4(max) && !isNaN(max) && max > 0;
+}
+function isValidValueNumber(value, max) {
+  return isNumber$4(value) && !isNaN(value) && value <= max && value >= 0;
+}
+function getInvalidMaxError(propValue, componentName) {
+  return `Invalid prop \`max\` of value \`${propValue}\` supplied to \`${componentName}\`. Only numbers greater than 0 are valid max values. Defaulting to \`${DEFAULT_MAX}\`.`;
+}
+function getInvalidValueError(propValue, componentName) {
+  return `Invalid prop \`value\` of value \`${propValue}\` supplied to \`${componentName}\`. The \`value\` prop must be:
+  - a positive number
+  - less than the value passed to \`max\` (or ${DEFAULT_MAX} if no \`max\` prop is set)
+  - \`null\` or \`undefined\` if the progress is indeterminate.
+
+Defaulting to \`null\`.`;
+}
+var Root$3 = Progress$1;
+var Indicator = ProgressIndicator;
+
+const Progress = reactExports.forwardRef(({ className, value, ...props }, ref) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  Root$3,
+  {
+    ref,
+    className: cn("relative h-4 w-full overflow-hidden rounded-full bg-secondary", className),
+    ...props,
+    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Indicator,
+      {
+        className: "h-full w-full flex-1 bg-primary transition-all",
+        style: { transform: `translateX(-${100 - (value || 0)}%)` }
+      }
+    )
+  }
+));
+Progress.displayName = Root$3.displayName;
+
 const BASE$1 = "";
 function useAPI$1(url) {
   const [data, setData] = reactExports.useState(null);
@@ -13295,6 +13418,10 @@ function TeacherDashboard() {
   const { data: courses, loading, error: coursesError, refetch } = useCourses();
   const { data: stats, loading: statsLoading } = useStats();
   const [syncing, setSyncing] = reactExports.useState(false);
+  const [syncModalOpen, setSyncModalOpen] = reactExports.useState(false);
+  const [syncResult, setSyncResult] = reactExports.useState(null);
+  const [syncProgress, setSyncProgress] = reactExports.useState(0);
+  const pollRef = reactExports.useRef(null);
   const pendingCount = stats?.pending ?? 0;
   const avgHumanMin = 15;
   const avgAiMin = 0.5;
@@ -13302,20 +13429,50 @@ function TeacherDashboard() {
   const aiHours = Math.round(pendingCount * avgAiMin / 60);
   const handleMoodleSync = async () => {
     setSyncing(true);
+    setSyncModalOpen(true);
+    setSyncResult(null);
+    setSyncProgress(10);
     try {
       const res = await fetch("/api/sync", { method: "POST" });
+      setSyncProgress(50);
       if (!res.ok) throw new Error("Error al sincronizar");
-      await refetch();
-      ue$1.success("Sincronización completada", {
-        description: "Datos actualizados desde Moodle."
-      });
+      let attempts = 0;
+      const maxAttempts = 30;
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch("/api/sync/status");
+          const status = await statusRes.json();
+          attempts++;
+          setSyncProgress(50 + Math.min(attempts * 2, 45));
+          if (status.last_sync && status.last_sync.status !== "running") {
+            clearInterval(pollRef.current);
+            setSyncProgress(100);
+            setSyncResult(status.last_sync);
+            setSyncing(false);
+            await refetch();
+          }
+          if (attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            setSyncProgress(100);
+            setSyncResult(status.last_sync || { status: "completed" });
+            setSyncing(false);
+            await refetch();
+          }
+        } catch (e) {
+        }
+      }, 800);
     } catch (e) {
-      ue$1.error("Error de sincronización", {
-        description: e.message || "No se pudo conectar con Moodle."
-      });
-    } finally {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setSyncResult({ status: "failed", errors_count: 1, errors: [{ message: e.message }] });
+      setSyncProgress(100);
       setSyncing(false);
     }
+  };
+  const closeSyncModal = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setSyncModalOpen(false);
+    setSyncResult(null);
+    setSyncProgress(0);
   };
   function courseStats(course) {
     let pending = 0, inProgress = 0, ready = 0, reviewed = 0;
@@ -13463,7 +13620,82 @@ function TeacherDashboard() {
       /* @__PURE__ */ jsxRuntimeExports.jsx(BookOpen, { className: "size-12 mx-auto text-muted-foreground/40 mb-3" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-muted-foreground", children: "No hay cursos todavía." }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-muted-foreground/60", children: "Sincronizá con Moodle para importar tus cursos." })
-    ] }) })
+    ] }) }),
+    syncModalOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm",
+        onClick: (e) => e.target === e.currentTarget && closeSyncModal(),
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white rounded-2xl max-w-xl w-[95%] max-h-[85vh] overflow-auto shadow-2xl", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between p-5 border-b", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("h2", { className: "text-lg font-semibold flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: `size-5 text-brand ${syncing ? "animate-spin" : ""}` }),
+              "Sincronización Moodle → TeacherBot"
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: closeSyncModal, className: "p-1 rounded hover:bg-gray-100", children: /* @__PURE__ */ jsxRuntimeExports.jsx(X$1, { className: "size-5" }) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-5 space-y-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between text-sm text-muted-foreground mb-2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: syncing ? "Sincronizando..." : syncResult?.status === "failed" ? "Error" : "Completado" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                  syncProgress,
+                  "%"
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Progress, { value: syncProgress, className: "h-2" })
+            ] }),
+            syncResult && syncResult.status === "completed" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(CircleCheck, { className: "size-5 text-emerald-600" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "font-semibold text-emerald-700", children: [
+                  "¡Sincronización exitosa! — ",
+                  syncResult.duration_ms,
+                  "ms"
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: [
+                { icon: GraduationCap, label: "Cursos", value: syncResult.courses_processed, total: syncResult.courses_total },
+                { icon: BookMarked, label: "Tareas", value: syncResult.assignments_created, total: syncResult.assignments_total },
+                { icon: Users, label: "Estudiantes", value: syncResult.students_created, total: syncResult.students_total },
+                { icon: FileText, label: "Entregas", value: syncResult.submissions_created, total: syncResult.submissions_total },
+                { icon: FileText, label: "PDFs descargados", value: syncResult.pdfs_downloaded, total: null },
+                { icon: CircleAlert, label: "Errores", value: syncResult.errors_count, total: null, danger: syncResult.errors_count > 0 }
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 p-3 rounded-lg bg-gray-50", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(Icon, { className: "size-4 text-muted-foreground" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] uppercase tracking-wider text-muted-foreground", children: item.label }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `text-lg font-bold ${item.danger ? "text-red-600" : "text-gray-900"}`, children: [
+                      item.value,
+                      item.total != null ? ` / ${item.total}` : ""
+                    ] })
+                  ] })
+                ] }, i);
+              }) })
+            ] }),
+            syncResult && syncResult.status === "failed" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 rounded-lg bg-red-50 border border-red-200", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 mb-2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(CircleAlert, { className: "size-5 text-red-600" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-semibold text-red-700", children: "Error en la sincronización" })
+              ] }),
+              syncResult.errors?.map((e, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-red-600 ml-7", children: e.message }, i))
+            ] }),
+            syncResult && !syncing && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 pt-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { onClick: handleMoodleSync, variant: "outline", className: "flex-1", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "size-4 mr-2" }),
+                " Sincronizar de nuevo"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { onClick: closeSyncModal, className: "flex-1 bg-brand hover:bg-brand/90 text-white", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(CircleCheck, { className: "size-4 mr-2" }),
+                " Cerrar"
+              ] })
+            ] })
+          ] })
+        ] })
+      }
+    )
   ] });
 }
 
@@ -14891,7 +15123,7 @@ var DescriptionWarning = ({ contentRef, descriptionId }) => {
   }, [MESSAGE, contentRef, descriptionId]);
   return null;
 };
-var Root$3 = Dialog$1;
+var Root$2 = Dialog$1;
 var Portal = DialogPortal$1;
 var Overlay = DialogOverlay$1;
 var Content$1 = DialogContent$1;
@@ -15173,7 +15405,7 @@ function SandboxModal({ open, onOpenChange, assignmentId, assignmentTitle, cours
     progress: "text-violet-400",
     criterio: "text-yellow-300"
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(Root$3, { open: internalOpen, onOpenChange: (open2) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(Root$2, { open: internalOpen, onOpenChange: (open2) => {
     if (!open2) handleClose();
   }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Portal, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(Overlay, { className: "fixed inset-0 z-50 bg-black/70 data-[state=open]:animate-in data-[state=closed]:animate-out" }),
@@ -15593,11 +15825,11 @@ var Label$2 = reactExports.forwardRef((props, forwardedRef) => {
   );
 });
 Label$2.displayName = NAME$1;
-var Root$2 = Label$2;
+var Root$1 = Label$2;
 
 const labelVariants = cva("text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70");
-const Label$1 = reactExports.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsxRuntimeExports.jsx(Root$2, { ref, className: cn(labelVariants(), className), ...props }));
-Label$1.displayName = Root$2.displayName;
+const Label$1 = reactExports.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsxRuntimeExports.jsx(Root$1, { ref, className: cn(labelVariants(), className), ...props }));
+Label$1.displayName = Root$1.displayName;
 
 const Textarea = reactExports.forwardRef(({ className, ...props }, ref) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -15664,7 +15896,7 @@ const TableCaption = reactExports.forwardRef(
 );
 TableCaption.displayName = "TableCaption";
 
-const Dialog = Root$3;
+const Dialog = Root$2;
 const DialogPortal = Portal;
 const DialogOverlay = reactExports.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsxRuntimeExports.jsx(
   Overlay,
@@ -24948,7 +25180,7 @@ function(t){t.processWEBP=function(e,r,n,i){var a=new ue(e),o=a.width,s=a.height
  * Licensed under the MIT License.
  * http://opensource.org/licenses/mit-license
  */
-function(t){var e=function(t){for(var e=t.length,r=new Uint8Array(e),n=0;n<e;n++)r[n]=t.charCodeAt(n);return r};t.API.events.push(["addFont",function(r){var n=void 0,i=r.font,a=r.instance;if(!i.isStandardFont){if(void 0===a)throw new Error("Font does not exist in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");if("string"!=typeof(n=false===a.existsFileInVFS(i.postScriptName)?a.loadFile(i.postScriptName):a.getFileFromVFS(i.postScriptName)))throw new Error("Font is not stored as string-data in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");!function(r,n){n=/^\x00\x01\x00\x00/.test(n)?e(n):e(f$1(n)),r.metadata=t.API.TTFFont.open(n),r.metadata.Unicode=r.metadata.Unicode||{encoding:{},kerning:{},widths:[]},r.metadata.glyIdsUsed=[0];}(i,n);}}]);}(E),E.API.addSvgAsImage=function(t,e,r,n,a,s,u,c){if(isNaN(e)||isNaN(r))throw o.error("jsPDF.addSvgAsImage: Invalid coordinates",arguments),new Error("Invalid coordinates passed to jsPDF.addSvgAsImage");if(isNaN(n)||isNaN(a))throw o.error("jsPDF.addSvgAsImage: Invalid measurements",arguments),new Error("Invalid measurements (width and/or height) passed to jsPDF.addSvgAsImage");var l=document.createElement("canvas");l.width=n,l.height=a;var h=l.getContext("2d");h.fillStyle="#fff",h.fillRect(0,0,l.width,l.height);var f={ignoreMouse:true,ignoreAnimation:true,ignoreDimensions:true},d=this;return (i.canvg?Promise.resolve(i.canvg):__vitePreload(() => import('./index.es-DbfO92d3.js'),true?[]:void 0)).catch(function(t){return Promise.reject(new Error("Could not load canvg: "+t))}).then(function(t){return t.default?t.default:t}).then(function(e){return e.fromString(h,t,f)},function(){return Promise.reject(new Error("Could not load canvg."))}).then(function(t){return t.render(f)}).then(function(){d.addImage(l.toDataURL("image/jpeg",1),e,r,n,a,u,c);})},E.API.putTotalPages=function(t){var e,r=0;parseInt(this.internal.getFont().id.substr(1),10)<15?(e=new RegExp(t,"g"),r=this.internal.getNumberOfPages()):(e=new RegExp(this.pdfEscape16(t,this.internal.getFont()),"g"),r=this.pdfEscape16(this.internal.getNumberOfPages()+"",this.internal.getFont()));for(var n=1;n<=this.internal.getNumberOfPages();n++)for(var i=0;i<this.internal.pages[n].length;i++)this.internal.pages[n][i]=this.internal.pages[n][i].replace(e,r);return this},E.API.viewerPreferences=function(e,r){var n;e=e||{},r=r||false;var i,a,o,s={HideToolbar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideMenubar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideWindowUI:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},FitWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},CenterWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},DisplayDocTitle:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.4},NonFullScreenPageMode:{defaultValue:"UseNone",value:"UseNone",type:"name",explicitSet:false,valueSet:["UseNone","UseOutlines","UseThumbs","UseOC"],pdfVersion:1.3},Direction:{defaultValue:"L2R",value:"L2R",type:"name",explicitSet:false,valueSet:["L2R","R2L"],pdfVersion:1.3},ViewArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},ViewClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintScaling:{defaultValue:"AppDefault",value:"AppDefault",type:"name",explicitSet:false,valueSet:["AppDefault","None"],pdfVersion:1.6},Duplex:{defaultValue:"",value:"none",type:"name",explicitSet:false,valueSet:["Simplex","DuplexFlipShortEdge","DuplexFlipLongEdge","none"],pdfVersion:1.7},PickTrayByPDFSize:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.7},PrintPageRange:{defaultValue:"",value:"",type:"array",explicitSet:false,valueSet:null,pdfVersion:1.7},NumCopies:{defaultValue:1,value:1,type:"integer",explicitSet:false,valueSet:null,pdfVersion:1.7}},u=Object.keys(s),c=[],l=0,h=0,f=0;function d(t,e){var r,n=false;for(r=0;r<t.length;r+=1)t[r]===e&&(n=true);return n}if(void 0===this.internal.viewerpreferences&&(this.internal.viewerpreferences={},this.internal.viewerpreferences.configuration=JSON.parse(JSON.stringify(s)),this.internal.viewerpreferences.isSubscribed=false),n=this.internal.viewerpreferences.configuration,"reset"===e||true===r){var p=u.length;for(f=0;f<p;f+=1)n[u[f]].value=n[u[f]].defaultValue,n[u[f]].explicitSet=false;}if("object"===_typeof$M(e))for(a in e)if(o=e[a],d(u,a)&&void 0!==o){if("boolean"===n[a].type&&"boolean"==typeof o)n[a].value=o;else if("name"===n[a].type&&d(n[a].valueSet,o))n[a].value=o;else if("integer"===n[a].type&&Number.isInteger(o))n[a].value=o;else if("array"===n[a].type){for(l=0;l<o.length;l+=1)if(i=true,1===o[l].length&&"number"==typeof o[l][0])c.push(String(o[l]-1));else if(o[l].length>1){for(h=0;h<o[l].length;h+=1)"number"!=typeof o[l][h]&&(i=false);true===i&&c.push([o[l][0]-1,o[l][1]-1].join(" "));}n[a].value="["+c.join(" ")+"]";}else n[a].value=n[a].defaultValue;n[a].explicitSet=true;}return  false===this.internal.viewerpreferences.isSubscribed&&(this.internal.events.subscribe("putCatalog",function(){var t,e=[];for(t in n) true===n[t].explicitSet&&("name"===n[t].type?e.push("/"+t+" /"+n[t].value):e.push("/"+t+" "+n[t].value));0!==e.length&&this.internal.write("/ViewerPreferences\n<<\n"+e.join("\n")+"\n>>");}),this.internal.viewerpreferences.isSubscribed=true),this.internal.viewerpreferences.configuration=n,this},E.API.addMetadata=function(t,e){return void 0===this.internal.__metadata__&&(this.internal.__metadata__={metadata:t,namespaceUri:null!=e?e:"http://jspdf.default.namespaceuri/",rawXml:"boolean"==typeof e&&e},this.internal.events.subscribe("putCatalog",le),this.internal.events.subscribe("postPutResources",ce)),this},function(t){var e=t.API,r=e.pdfEscape16=function(t,e){for(var r,n=e.metadata.Unicode.widths,i=["","0","00","000","0000"],a=[""],o=0,s=t.length;o<s;++o){if(r=e.metadata.characterToGlyph(t.charCodeAt(o)),e.metadata.glyIdsUsed.push(r),e.metadata.toUnicode[r]=t.charCodeAt(o),-1==n.indexOf(r)&&(n.push(r),n.push([parseInt(e.metadata.widthOfGlyph(r),10)])),"0"==r)return a.join("");r=r.toString(16),a.push(i[4-r.length],r);}return a.join("")},n=function(t){var e,r,n,i,a,o,s;for(a="/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo <<\n  /Registry (Adobe)\n  /Ordering (UCS)\n  /Supplement 0\n>> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000><ffff>\nendcodespacerange",n=[],o=0,s=(r=Object.keys(t).sort(function(t,e){return t-e})).length;o<s;o++)e=r[o],n.length>=100&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar",n=[]),void 0!==t[e]&&null!==t[e]&&"function"==typeof t[e].toString&&(i=("0000"+t[e].toString(16)).slice(-4),e=("0000"+(+e).toString(16)).slice(-4),n.push("<"+e+"><"+i+">"));return n.length&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar\n"),a+"endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend"};e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"Identity-H"===r.encoding){for(var s=r.metadata.Unicode.widths,u=r.metadata.subset.encode(r.metadata.glyIdsUsed,1),c="",l=0;l<u.length;l++)c+=String.fromCharCode(u[l]);var h=a();o({data:c,addLength1:true,objectId:h}),i("endobj");var f=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:f}),i("endobj");var d=a();i("<<"),i("/Type /FontDescriptor"),i("/FontName /"+C(r.fontName)),i("/FontFile2 "+h+" 0 R"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/Flags "+r.metadata.flags),i("/StemV "+r.metadata.stemV),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i(">>"),i("endobj");var p=a();i("<<"),i("/Type /Font"),i("/BaseFont /"+C(r.fontName)),i("/FontDescriptor "+d+" 0 R"),i("/W "+t.API.PDFObject.convert(s)),i("/CIDToGIDMap /Identity"),i("/DW 1000"),i("/Subtype /CIDFontType2"),i("/CIDSystemInfo"),i("<<"),i("/Supplement 0"),i("/Registry (Adobe)"),i("/Ordering ("+r.encoding+")"),i(">>"),i(">>"),i("endobj"),r.objectNumber=a(),i("<<"),i("/Type /Font"),i("/Subtype /Type0"),i("/ToUnicode "+f+" 0 R"),i("/BaseFont /"+C(r.fontName)),i("/Encoding /"+r.encoding),i("/DescendantFonts ["+p+" 0 R]"),i(">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]),e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"WinAnsiEncoding"===r.encoding){for(var s=r.metadata.rawData,u="",c=0;c<s.length;c++)u+=String.fromCharCode(s[c]);var l=a();o({data:u,addLength1:true,objectId:l}),i("endobj");var h=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:h}),i("endobj");var f=a();i("<<"),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i("/StemV "+r.metadata.stemV),i("/Type /FontDescriptor"),i("/FontFile2 "+l+" 0 R"),i("/Flags 96"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/FontName /"+C(r.fontName)),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i(">>"),i("endobj"),r.objectNumber=a();for(var d=0;d<r.metadata.hmtx.widths.length;d++)r.metadata.hmtx.widths[d]=parseInt(r.metadata.hmtx.widths[d]*(1e3/r.metadata.head.unitsPerEm));i("<</Subtype/TrueType/Type/Font/ToUnicode "+h+" 0 R/BaseFont/"+C(r.fontName)+"/FontDescriptor "+f+" 0 R/Encoding/"+r.encoding+" /FirstChar 29 /LastChar 255 /Widths "+t.API.PDFObject.convert(r.metadata.hmtx.widths)+">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]);var i=function(t){var e,n=t.text||"",i=t.x,a=t.y,o=t.options||{},s=t.mutex||{},u=s.pdfEscape,c=s.activeFontKey,l=s.fonts,h=c,f="",d=0,p="",g=l[h].encoding;if("Identity-H"!==l[h].encoding)return {text:n,x:i,y:a,options:o,mutex:s};for(p=n,h=c,Array.isArray(n)&&(p=n[0]),d=0;d<p.length;d+=1)l[h].metadata.hasOwnProperty("cmap")&&(e=l[h].metadata.cmap.unicode.codeMap[p[d].charCodeAt(0)]),e||p[d].charCodeAt(0)<256&&l[h].metadata.hasOwnProperty("Unicode")?f+=p[d]:f+="";var m="";return parseInt(h.slice(1))<14||"WinAnsiEncoding"===g?m=u(f,h).split("").map(function(t){return t.charCodeAt(0).toString(16)}).join(""):"Identity-H"===g&&(m=r(f,l[h])),s.isHex=true,{text:m,x:i,y:a,options:o,mutex:s}};e.events.push(["postProcessText",function(t){var e=t.text||"",r=[],n={text:e,x:t.x,y:t.y,options:t.options,mutex:t.mutex};if(Array.isArray(e)){var a=0;for(a=0;a<e.length;a+=1)Array.isArray(e[a])&&3===e[a].length?r.push([i(Object.assign({},n,{text:e[a][0]})).text,e[a][1],e[a][2]]):r.push(i(Object.assign({},n,{text:e[a]})).text);t.text=r;}else t.text=i(Object.assign({},n,{text:e})).text;}]);}(E),
+function(t){var e=function(t){for(var e=t.length,r=new Uint8Array(e),n=0;n<e;n++)r[n]=t.charCodeAt(n);return r};t.API.events.push(["addFont",function(r){var n=void 0,i=r.font,a=r.instance;if(!i.isStandardFont){if(void 0===a)throw new Error("Font does not exist in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");if("string"!=typeof(n=false===a.existsFileInVFS(i.postScriptName)?a.loadFile(i.postScriptName):a.getFileFromVFS(i.postScriptName)))throw new Error("Font is not stored as string-data in vFS, import fonts or remove declaration doc.addFont('"+i.postScriptName+"').");!function(r,n){n=/^\x00\x01\x00\x00/.test(n)?e(n):e(f$1(n)),r.metadata=t.API.TTFFont.open(n),r.metadata.Unicode=r.metadata.Unicode||{encoding:{},kerning:{},widths:[]},r.metadata.glyIdsUsed=[0];}(i,n);}}]);}(E),E.API.addSvgAsImage=function(t,e,r,n,a,s,u,c){if(isNaN(e)||isNaN(r))throw o.error("jsPDF.addSvgAsImage: Invalid coordinates",arguments),new Error("Invalid coordinates passed to jsPDF.addSvgAsImage");if(isNaN(n)||isNaN(a))throw o.error("jsPDF.addSvgAsImage: Invalid measurements",arguments),new Error("Invalid measurements (width and/or height) passed to jsPDF.addSvgAsImage");var l=document.createElement("canvas");l.width=n,l.height=a;var h=l.getContext("2d");h.fillStyle="#fff",h.fillRect(0,0,l.width,l.height);var f={ignoreMouse:true,ignoreAnimation:true,ignoreDimensions:true},d=this;return (i.canvg?Promise.resolve(i.canvg):__vitePreload(() => import('./index.es-DxaJWzrx.js'),true?[]:void 0)).catch(function(t){return Promise.reject(new Error("Could not load canvg: "+t))}).then(function(t){return t.default?t.default:t}).then(function(e){return e.fromString(h,t,f)},function(){return Promise.reject(new Error("Could not load canvg."))}).then(function(t){return t.render(f)}).then(function(){d.addImage(l.toDataURL("image/jpeg",1),e,r,n,a,u,c);})},E.API.putTotalPages=function(t){var e,r=0;parseInt(this.internal.getFont().id.substr(1),10)<15?(e=new RegExp(t,"g"),r=this.internal.getNumberOfPages()):(e=new RegExp(this.pdfEscape16(t,this.internal.getFont()),"g"),r=this.pdfEscape16(this.internal.getNumberOfPages()+"",this.internal.getFont()));for(var n=1;n<=this.internal.getNumberOfPages();n++)for(var i=0;i<this.internal.pages[n].length;i++)this.internal.pages[n][i]=this.internal.pages[n][i].replace(e,r);return this},E.API.viewerPreferences=function(e,r){var n;e=e||{},r=r||false;var i,a,o,s={HideToolbar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideMenubar:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},HideWindowUI:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},FitWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},CenterWindow:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.3},DisplayDocTitle:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.4},NonFullScreenPageMode:{defaultValue:"UseNone",value:"UseNone",type:"name",explicitSet:false,valueSet:["UseNone","UseOutlines","UseThumbs","UseOC"],pdfVersion:1.3},Direction:{defaultValue:"L2R",value:"L2R",type:"name",explicitSet:false,valueSet:["L2R","R2L"],pdfVersion:1.3},ViewArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},ViewClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintArea:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintClip:{defaultValue:"CropBox",value:"CropBox",type:"name",explicitSet:false,valueSet:["MediaBox","CropBox","TrimBox","BleedBox","ArtBox"],pdfVersion:1.4},PrintScaling:{defaultValue:"AppDefault",value:"AppDefault",type:"name",explicitSet:false,valueSet:["AppDefault","None"],pdfVersion:1.6},Duplex:{defaultValue:"",value:"none",type:"name",explicitSet:false,valueSet:["Simplex","DuplexFlipShortEdge","DuplexFlipLongEdge","none"],pdfVersion:1.7},PickTrayByPDFSize:{defaultValue:false,value:false,type:"boolean",explicitSet:false,valueSet:[true,false],pdfVersion:1.7},PrintPageRange:{defaultValue:"",value:"",type:"array",explicitSet:false,valueSet:null,pdfVersion:1.7},NumCopies:{defaultValue:1,value:1,type:"integer",explicitSet:false,valueSet:null,pdfVersion:1.7}},u=Object.keys(s),c=[],l=0,h=0,f=0;function d(t,e){var r,n=false;for(r=0;r<t.length;r+=1)t[r]===e&&(n=true);return n}if(void 0===this.internal.viewerpreferences&&(this.internal.viewerpreferences={},this.internal.viewerpreferences.configuration=JSON.parse(JSON.stringify(s)),this.internal.viewerpreferences.isSubscribed=false),n=this.internal.viewerpreferences.configuration,"reset"===e||true===r){var p=u.length;for(f=0;f<p;f+=1)n[u[f]].value=n[u[f]].defaultValue,n[u[f]].explicitSet=false;}if("object"===_typeof$M(e))for(a in e)if(o=e[a],d(u,a)&&void 0!==o){if("boolean"===n[a].type&&"boolean"==typeof o)n[a].value=o;else if("name"===n[a].type&&d(n[a].valueSet,o))n[a].value=o;else if("integer"===n[a].type&&Number.isInteger(o))n[a].value=o;else if("array"===n[a].type){for(l=0;l<o.length;l+=1)if(i=true,1===o[l].length&&"number"==typeof o[l][0])c.push(String(o[l]-1));else if(o[l].length>1){for(h=0;h<o[l].length;h+=1)"number"!=typeof o[l][h]&&(i=false);true===i&&c.push([o[l][0]-1,o[l][1]-1].join(" "));}n[a].value="["+c.join(" ")+"]";}else n[a].value=n[a].defaultValue;n[a].explicitSet=true;}return  false===this.internal.viewerpreferences.isSubscribed&&(this.internal.events.subscribe("putCatalog",function(){var t,e=[];for(t in n) true===n[t].explicitSet&&("name"===n[t].type?e.push("/"+t+" /"+n[t].value):e.push("/"+t+" "+n[t].value));0!==e.length&&this.internal.write("/ViewerPreferences\n<<\n"+e.join("\n")+"\n>>");}),this.internal.viewerpreferences.isSubscribed=true),this.internal.viewerpreferences.configuration=n,this},E.API.addMetadata=function(t,e){return void 0===this.internal.__metadata__&&(this.internal.__metadata__={metadata:t,namespaceUri:null!=e?e:"http://jspdf.default.namespaceuri/",rawXml:"boolean"==typeof e&&e},this.internal.events.subscribe("putCatalog",le),this.internal.events.subscribe("postPutResources",ce)),this},function(t){var e=t.API,r=e.pdfEscape16=function(t,e){for(var r,n=e.metadata.Unicode.widths,i=["","0","00","000","0000"],a=[""],o=0,s=t.length;o<s;++o){if(r=e.metadata.characterToGlyph(t.charCodeAt(o)),e.metadata.glyIdsUsed.push(r),e.metadata.toUnicode[r]=t.charCodeAt(o),-1==n.indexOf(r)&&(n.push(r),n.push([parseInt(e.metadata.widthOfGlyph(r),10)])),"0"==r)return a.join("");r=r.toString(16),a.push(i[4-r.length],r);}return a.join("")},n=function(t){var e,r,n,i,a,o,s;for(a="/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo <<\n  /Registry (Adobe)\n  /Ordering (UCS)\n  /Supplement 0\n>> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000><ffff>\nendcodespacerange",n=[],o=0,s=(r=Object.keys(t).sort(function(t,e){return t-e})).length;o<s;o++)e=r[o],n.length>=100&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar",n=[]),void 0!==t[e]&&null!==t[e]&&"function"==typeof t[e].toString&&(i=("0000"+t[e].toString(16)).slice(-4),e=("0000"+(+e).toString(16)).slice(-4),n.push("<"+e+"><"+i+">"));return n.length&&(a+="\n"+n.length+" beginbfchar\n"+n.join("\n")+"\nendbfchar\n"),a+"endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend"};e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"Identity-H"===r.encoding){for(var s=r.metadata.Unicode.widths,u=r.metadata.subset.encode(r.metadata.glyIdsUsed,1),c="",l=0;l<u.length;l++)c+=String.fromCharCode(u[l]);var h=a();o({data:c,addLength1:true,objectId:h}),i("endobj");var f=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:f}),i("endobj");var d=a();i("<<"),i("/Type /FontDescriptor"),i("/FontName /"+C(r.fontName)),i("/FontFile2 "+h+" 0 R"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/Flags "+r.metadata.flags),i("/StemV "+r.metadata.stemV),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i(">>"),i("endobj");var p=a();i("<<"),i("/Type /Font"),i("/BaseFont /"+C(r.fontName)),i("/FontDescriptor "+d+" 0 R"),i("/W "+t.API.PDFObject.convert(s)),i("/CIDToGIDMap /Identity"),i("/DW 1000"),i("/Subtype /CIDFontType2"),i("/CIDSystemInfo"),i("<<"),i("/Supplement 0"),i("/Registry (Adobe)"),i("/Ordering ("+r.encoding+")"),i(">>"),i(">>"),i("endobj"),r.objectNumber=a(),i("<<"),i("/Type /Font"),i("/Subtype /Type0"),i("/ToUnicode "+f+" 0 R"),i("/BaseFont /"+C(r.fontName)),i("/Encoding /"+r.encoding),i("/DescendantFonts ["+p+" 0 R]"),i(">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]),e.events.push(["putFont",function(e){!function(e){var r=e.font,i=e.out,a=e.newObject,o=e.putStream;if(r.metadata instanceof t.API.TTFFont&&"WinAnsiEncoding"===r.encoding){for(var s=r.metadata.rawData,u="",c=0;c<s.length;c++)u+=String.fromCharCode(s[c]);var l=a();o({data:u,addLength1:true,objectId:l}),i("endobj");var h=a();o({data:n(r.metadata.toUnicode),addLength1:true,objectId:h}),i("endobj");var f=a();i("<<"),i("/Descent "+r.metadata.decender),i("/CapHeight "+r.metadata.capHeight),i("/StemV "+r.metadata.stemV),i("/Type /FontDescriptor"),i("/FontFile2 "+l+" 0 R"),i("/Flags 96"),i("/FontBBox "+t.API.PDFObject.convert(r.metadata.bbox)),i("/FontName /"+C(r.fontName)),i("/ItalicAngle "+r.metadata.italicAngle),i("/Ascent "+r.metadata.ascender),i(">>"),i("endobj"),r.objectNumber=a();for(var d=0;d<r.metadata.hmtx.widths.length;d++)r.metadata.hmtx.widths[d]=parseInt(r.metadata.hmtx.widths[d]*(1e3/r.metadata.head.unitsPerEm));i("<</Subtype/TrueType/Type/Font/ToUnicode "+h+" 0 R/BaseFont/"+C(r.fontName)+"/FontDescriptor "+f+" 0 R/Encoding/"+r.encoding+" /FirstChar 29 /LastChar 255 /Widths "+t.API.PDFObject.convert(r.metadata.hmtx.widths)+">>"),i("endobj"),r.isAlreadyPutted=true;}}(e);}]);var i=function(t){var e,n=t.text||"",i=t.x,a=t.y,o=t.options||{},s=t.mutex||{},u=s.pdfEscape,c=s.activeFontKey,l=s.fonts,h=c,f="",d=0,p="",g=l[h].encoding;if("Identity-H"!==l[h].encoding)return {text:n,x:i,y:a,options:o,mutex:s};for(p=n,h=c,Array.isArray(n)&&(p=n[0]),d=0;d<p.length;d+=1)l[h].metadata.hasOwnProperty("cmap")&&(e=l[h].metadata.cmap.unicode.codeMap[p[d].charCodeAt(0)]),e||p[d].charCodeAt(0)<256&&l[h].metadata.hasOwnProperty("Unicode")?f+=p[d]:f+="";var m="";return parseInt(h.slice(1))<14||"WinAnsiEncoding"===g?m=u(f,h).split("").map(function(t){return t.charCodeAt(0).toString(16)}).join(""):"Identity-H"===g&&(m=r(f,l[h])),s.isHex=true,{text:m,x:i,y:a,options:o,mutex:s}};e.events.push(["postProcessText",function(t){var e=t.text||"",r=[],n={text:e,x:t.x,y:t.y,options:t.options,mutex:t.mutex};if(Array.isArray(e)){var a=0;for(a=0;a<e.length;a+=1)Array.isArray(e[a])&&3===e[a].length?r.push([i(Object.assign({},n,{text:e[a][0]})).text,e[a][1],e[a][2]]):r.push(i(Object.assign({},n,{text:e[a]})).text);t.text=r;}else t.text=i(Object.assign({},n,{text:e})).text;}]);}(E),
 /**
  * @license
  * jsPDF virtual FileSystem functionality
@@ -28509,7 +28741,7 @@ function focusFirst(candidates, preventScroll = false) {
 function wrapArray(array, startIndex) {
   return array.map((_, index) => array[(startIndex + index) % array.length]);
 }
-var Root$1 = RovingFocusGroup;
+var Root = RovingFocusGroup;
 var Item = RovingFocusGroupItem;
 
 var TABS_NAME = "Tabs";
@@ -28568,7 +28800,7 @@ var TabsList$1 = reactExports.forwardRef(
     const context = useTabsContext(TAB_LIST_NAME, __scopeTabs);
     const rovingFocusGroupScope = useRovingFocusGroupScope(__scopeTabs);
     return /* @__PURE__ */ jsxRuntimeExports.jsx(
-      Root$1,
+      Root,
       {
         asChild: true,
         ...rovingFocusGroupScope,
@@ -29287,110 +29519,6 @@ function SystemLayout() {
     /* @__PURE__ */ jsxRuntimeExports.jsx("main", { className: "container py-8", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) })
   ] });
 }
-
-var PROGRESS_NAME = "Progress";
-var DEFAULT_MAX = 100;
-var [createProgressContext] = createContextScope(PROGRESS_NAME);
-var [ProgressProvider, useProgressContext] = createProgressContext(PROGRESS_NAME);
-var Progress$1 = reactExports.forwardRef(
-  (props, forwardedRef) => {
-    const {
-      __scopeProgress,
-      value: valueProp = null,
-      max: maxProp,
-      getValueLabel = defaultGetValueLabel,
-      ...progressProps
-    } = props;
-    if ((maxProp || maxProp === 0) && !isValidMaxNumber(maxProp)) {
-      console.error(getInvalidMaxError(`${maxProp}`, "Progress"));
-    }
-    const max = isValidMaxNumber(maxProp) ? maxProp : DEFAULT_MAX;
-    if (valueProp !== null && !isValidValueNumber(valueProp, max)) {
-      console.error(getInvalidValueError(`${valueProp}`, "Progress"));
-    }
-    const value = isValidValueNumber(valueProp, max) ? valueProp : null;
-    const valueLabel = isNumber$4(value) ? getValueLabel(value, max) : void 0;
-    return /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressProvider, { scope: __scopeProgress, value, max, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      Primitive.div,
-      {
-        "aria-valuemax": max,
-        "aria-valuemin": 0,
-        "aria-valuenow": isNumber$4(value) ? value : void 0,
-        "aria-valuetext": valueLabel,
-        role: "progressbar",
-        "data-state": getProgressState(value, max),
-        "data-value": value ?? void 0,
-        "data-max": max,
-        ...progressProps,
-        ref: forwardedRef
-      }
-    ) });
-  }
-);
-Progress$1.displayName = PROGRESS_NAME;
-var INDICATOR_NAME = "ProgressIndicator";
-var ProgressIndicator = reactExports.forwardRef(
-  (props, forwardedRef) => {
-    const { __scopeProgress, ...indicatorProps } = props;
-    const context = useProgressContext(INDICATOR_NAME, __scopeProgress);
-    return /* @__PURE__ */ jsxRuntimeExports.jsx(
-      Primitive.div,
-      {
-        "data-state": getProgressState(context.value, context.max),
-        "data-value": context.value ?? void 0,
-        "data-max": context.max,
-        ...indicatorProps,
-        ref: forwardedRef
-      }
-    );
-  }
-);
-ProgressIndicator.displayName = INDICATOR_NAME;
-function defaultGetValueLabel(value, max) {
-  return `${Math.round(value / max * 100)}%`;
-}
-function getProgressState(value, maxValue) {
-  return value == null ? "indeterminate" : value === maxValue ? "complete" : "loading";
-}
-function isNumber$4(value) {
-  return typeof value === "number";
-}
-function isValidMaxNumber(max) {
-  return isNumber$4(max) && !isNaN(max) && max > 0;
-}
-function isValidValueNumber(value, max) {
-  return isNumber$4(value) && !isNaN(value) && value <= max && value >= 0;
-}
-function getInvalidMaxError(propValue, componentName) {
-  return `Invalid prop \`max\` of value \`${propValue}\` supplied to \`${componentName}\`. Only numbers greater than 0 are valid max values. Defaulting to \`${DEFAULT_MAX}\`.`;
-}
-function getInvalidValueError(propValue, componentName) {
-  return `Invalid prop \`value\` of value \`${propValue}\` supplied to \`${componentName}\`. The \`value\` prop must be:
-  - a positive number
-  - less than the value passed to \`max\` (or ${DEFAULT_MAX} if no \`max\` prop is set)
-  - \`null\` or \`undefined\` if the progress is indeterminate.
-
-Defaulting to \`null\`.`;
-}
-var Root = Progress$1;
-var Indicator = ProgressIndicator;
-
-const Progress = reactExports.forwardRef(({ className, value, ...props }, ref) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-  Root,
-  {
-    ref,
-    className: cn("relative h-4 w-full overflow-hidden rounded-full bg-secondary", className),
-    ...props,
-    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      Indicator,
-      {
-        className: "h-full w-full flex-1 bg-primary transition-all",
-        style: { transform: `translateX(-${100 - (value || 0)}%)` }
-      }
-    )
-  }
-));
-Progress.displayName = Root.displayName;
 
 /**
  * Checks if `value` is classified as an `Array` object.

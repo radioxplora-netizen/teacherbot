@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, Loader2, Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Loader2, Plus, RefreshCw, AlertCircle, X, FileText, Users, GraduationCap, BookMarked } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import SpotlightSurface from "@/components/SpotlightSurface";
+import { Progress } from "@/components/ui/progress";
 import { useCourses, useStats } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -11,6 +12,10 @@ export default function TeacherDashboard() {
   const { data: courses, loading, error: coursesError, refetch } = useCourses();
   const { data: stats, loading: statsLoading } = useStats();
   const [syncing, setSyncing] = useState(false);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const pollRef = useRef<any>(null);
 
   // Real stats from database
   const pendingCount = stats?.pending ?? 0;
@@ -21,20 +26,54 @@ export default function TeacherDashboard() {
 
   const handleMoodleSync = async () => {
     setSyncing(true);
+    setSyncModalOpen(true);
+    setSyncResult(null);
+    setSyncProgress(10);
+    
     try {
       const res = await fetch("/api/sync", { method: "POST" });
+      setSyncProgress(50);
       if (!res.ok) throw new Error("Error al sincronizar");
-      await refetch();
-      toast.success("Sincronización completada", {
-        description: "Datos actualizados desde Moodle.",
-      });
+      
+      // Poll for result
+      let attempts = 0;
+      const maxAttempts = 30;
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch("/api/sync/status");
+          const status = await statusRes.json();
+          attempts++;
+          setSyncProgress(50 + Math.min(attempts * 2, 45));
+          
+          if (status.last_sync && status.last_sync.status !== 'running') {
+            clearInterval(pollRef.current);
+            setSyncProgress(100);
+            setSyncResult(status.last_sync);
+            setSyncing(false);
+            await refetch();
+          }
+          if (attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            setSyncProgress(100);
+            setSyncResult(status.last_sync || { status: 'completed' });
+            setSyncing(false);
+            await refetch();
+          }
+        } catch(e) {}
+      }, 800);
     } catch (e: any) {
-      toast.error("Error de sincronización", {
-        description: e.message || "No se pudo conectar con Moodle.",
-      });
-    } finally {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setSyncResult({ status: 'failed', errors_count: 1, errors: [{ message: e.message }] });
+      setSyncProgress(100);
       setSyncing(false);
     }
+  };
+  
+  const closeSyncModal = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setSyncModalOpen(false);
+    setSyncResult(null);
+    setSyncProgress(0);
   };
 
   // Count submissions by status for a course
@@ -177,6 +216,96 @@ export default function TeacherDashboard() {
             <p className="text-sm text-muted-foreground/60">Sincronizá con Moodle para importar tus cursos.</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* ─── Sync Monitor Modal ─── */}
+      {syncModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+             onClick={(e) => e.target === e.currentTarget && closeSyncModal()}>
+          <div className="bg-white rounded-2xl max-w-xl w-[95%] max-h-[85vh] overflow-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <RefreshCw className={`size-5 text-brand ${syncing ? 'animate-spin' : ''}`} />
+                Sincronización Moodle → TeacherBot
+              </h2>
+              <button onClick={closeSyncModal} className="p-1 rounded hover:bg-gray-100">
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              {/* Progress bar */}
+              <div>
+                <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                  <span>{syncing ? 'Sincronizando...' : syncResult?.status === 'failed' ? 'Error' : 'Completado'}</span>
+                  <span>{syncProgress}%</span>
+                </div>
+                <Progress value={syncProgress} className="h-2" />
+              </div>
+
+              {/* Success result */}
+              {syncResult && syncResult.status === 'completed' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <CheckCircle2 className="size-5 text-emerald-600" />
+                    <span className="font-semibold text-emerald-700">¡Sincronización exitosa! — {syncResult.duration_ms}ms</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { icon: GraduationCap, label: 'Cursos', value: syncResult.courses_processed, total: syncResult.courses_total },
+                      { icon: BookMarked, label: 'Tareas', value: syncResult.assignments_created, total: syncResult.assignments_total },
+                      { icon: Users, label: 'Estudiantes', value: syncResult.students_created, total: syncResult.students_total },
+                      { icon: FileText, label: 'Entregas', value: syncResult.submissions_created, total: syncResult.submissions_total },
+                      { icon: FileText, label: 'PDFs descargados', value: syncResult.pdfs_downloaded, total: null },
+                      { icon: AlertCircle, label: 'Errores', value: syncResult.errors_count, total: null, danger: syncResult.errors_count > 0 },
+                    ].map((item, i) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-gray-50">
+                          <Icon className="size-4 text-muted-foreground" />
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{item.label}</div>
+                            <div className={`text-lg font-bold ${item.danger ? 'text-red-600' : 'text-gray-900'}`}>
+                              {item.value}{item.total != null ? ` / ${item.total}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Error result */}
+              {syncResult && syncResult.status === 'failed' && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="size-5 text-red-600" />
+                    <span className="font-semibold text-red-700">Error en la sincronización</span>
+                  </div>
+                  {syncResult.errors?.map((e: any, i: number) => (
+                    <p key={i} className="text-sm text-red-600 ml-7">{e.message}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              {syncResult && !syncing && (
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={handleMoodleSync} variant="outline" className="flex-1">
+                    <RefreshCw className="size-4 mr-2" /> Sincronizar de nuevo
+                  </Button>
+                  <Button onClick={closeSyncModal} className="flex-1 bg-brand hover:bg-brand/90 text-white">
+                    <CheckCircle2 className="size-4 mr-2" /> Cerrar
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
