@@ -838,7 +838,7 @@ function handleAPI(req, res, apiPath) {
   if (apiPath === '/admin/config' && req.method === 'GET') {
     const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
     const config = db.prepare('SELECT key, value, description FROM ai_config ORDER BY key').all();
-    const providers = db.prepare('SELECT * FROM ai_providers ORDER BY priority DESC, name').all();
+    const providers = db.prepare('SELECT * FROM ai_providers ORDER BY is_default DESC, name').all();
     return json(res, { config, providers });
   }
 
