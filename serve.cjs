@@ -599,7 +599,266 @@ function handleAPI(req, res, apiPath) {
   }
 
 
+
   // ═══════════════════════════════════════════════════════════════
+  // ADMIN ENDPOINTS
+  // — solo rol admin puede escribir
+  // ═══════════════════════════════════════════════════════════════
+
+  function requireAdmin(req, res) {
+    const cookie = req.headers.cookie || '';
+    const m = cookie.match(/token=([^;]+)/);
+    if (!m) return null;
+    try {
+      const decoded = jwt.verify(m[1], JWT_SECRET);
+      const u = db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(decoded.sub);
+      if (!u || u.role !== 'admin') return null;
+      return u;
+    } catch { return null; }
+  }
+
+  // ── GET /api/admin/users ──────────────────────────────────
+  if (apiPath === '/admin/users' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const users = db.prepare('SELECT id, name, email, role, active, avatar_url, created_at, last_login FROM users ORDER BY role, name').all();
+    return json(res, users);
+  }
+
+  // ── POST /api/admin/users ─────────────────────────────────
+  if (apiPath === '/admin/users' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { id, name, email, role, password, active } = body;
+      if (!name || !email || !role) return error(res, 'Faltan campos requeridos (name, email, role)', 400);
+      if (!['admin','vicerrector','docente','estudiante','sistemas'].includes(role)) return error(res, 'Rol inválido', 400);
+      const exists = db.prepare('SELECT id FROM users WHERE email=?').get(email);
+      if (exists) return error(res, 'Email ya existe', 409);
+      const userId = id || ('u-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+      const password_hash = password ? bcrypt.hashSync(password, 12) : null;
+      const isActive = active === false ? 0 : 1;
+      db.prepare('INSERT INTO users (id, name, email, role, password_hash, active) VALUES (?, ?, ?, ?, ?, ?)').run(userId, name, email, role, password_hash, isActive);
+      const u = db.prepare('SELECT id, name, email, role, active, avatar_url, created_at, last_login FROM users WHERE id=?').get(userId);
+      return json(res, u);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/users/:id ──────────────────────────────
+  const userPutMatch = apiPath.match(/^\/admin\/users\/([^/]+)$/);
+  if (userPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const u = db.prepare('SELECT * FROM users WHERE id=?').get(userPutMatch[1]);
+      if (!u) return error(res, 'Usuario no existe', 404);
+      const name = typeof body.name === 'string' ? body.name : u.name;
+      const email = typeof body.email === 'string' ? body.email : u.email;
+      const role = typeof body.role === 'string' ? body.role : u.role;
+      const active = typeof body.active === 'boolean' ? (body.active ? 1 : 0) : u.active;
+      let password_hash = u.password_hash;
+      if (body.password && typeof body.password === 'string' && body.password.length >= 6) {
+        password_hash = bcrypt.hashSync(body.password, 12);
+      }
+      if (email !== u.email) {
+        const conflict = db.prepare('SELECT id FROM users WHERE email=? AND id<>?').get(email, u.id);
+        if (conflict) return error(res, 'Email ya existe', 409);
+      }
+      db.prepare('UPDATE users SET name=?, email=?, role=?, active=?, password_hash=? WHERE id=?').run(name, email, role, active, password_hash, u.id);
+      const updated = db.prepare('SELECT id, name, email, role, active, avatar_url, created_at, last_login FROM users WHERE id=?').get(u.id);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update', 'user', u.id);
+      return json(res, updated);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/users/:id ───────────────────────────
+  if (userPutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const u = db.prepare('SELECT * FROM users WHERE id=?').get(userPutMatch[1]);
+    if (!u) return error(res, 'Usuario no existe', 404);
+    if (u.id === admin.id) return error(res, 'No puede eliminarse a sí mismo', 400);
+    if (u.role === 'admin') return error(res, 'No puede eliminar admins', 403);
+    db.prepare('DELETE FROM users WHERE id=?').run(u.id);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete', 'user', u.id);
+    return json(res, { ok: true, id: u.id });
+  }
+
+  // ── GET /api/admin/courses ────────────────────────────────
+  if (apiPath === '/admin/courses' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const rows = db.prepare(`
+      SELECT c.*, u.name as teacher_name,
+        (SELECT count(*) FROM assignments WHERE course_id=c.id) as assignments_count,
+        (SELECT count(*) FROM enrollments WHERE course_id=c.id) as students_count
+      FROM courses c LEFT JOIN users u ON c.teacher_id = u.id
+      ORDER BY c.name
+    `).all();
+    return json(res, rows);
+  }
+
+  // ── POST /api/admin/courses ───────────────────────────────
+  if (apiPath === '/admin/courses' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { id, name, code, teacher_id, description } = body;
+      if (!name) return error(res, 'Nombre requerido', 400);
+      const cid = id || ('c-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+      db.prepare('INSERT INTO courses (id, name, code, teacher_id, description) VALUES (?, ?, ?, ?, ?)').run(
+        cid, name, code || null, teacher_id || null, description || null
+      );
+      const c = db.prepare('SELECT * FROM courses WHERE id=?').get(cid);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create', 'course', cid);
+      return json(res, c);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/courses/:id ────────────────────────────
+  const coursePutMatch = apiPath.match(/^\/admin\/courses\/([^/]+)$/);
+  if (coursePutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const c = db.prepare('SELECT * FROM courses WHERE id=?').get(coursePutMatch[1]);
+      if (!c) return error(res, 'Curso no existe', 404);
+      const name = typeof body.name === 'string' ? body.name : c.name;
+      const code = typeof body.code === 'string' ? body.code : c.code;
+      const teacher_id = typeof body.teacher_id === 'string' ? body.teacher_id : c.teacher_id;
+      const description = typeof body.description === 'string' ? body.description : c.description;
+      db.prepare('UPDATE courses SET name=?, code=?, teacher_id=?, description=? WHERE id=?').run(name, code, teacher_id, description, c.id);
+      const updated = db.prepare('SELECT * FROM courses WHERE id=?').get(c.id);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update', 'course', c.id);
+      return json(res, updated);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/courses/:id ─────────────────────────
+  if (coursePutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const c = db.prepare('SELECT * FROM courses WHERE id=?').get(coursePutMatch[1]);
+    if (!c) return error(res, 'Curso no existe', 404);
+    db.prepare('DELETE FROM courses WHERE id=?').run(c.id);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete', 'course', c.id);
+    return json(res, { ok: true, id: c.id });
+  }
+
+  // ── GET /api/admin/students ───────────────────────────────
+  if (apiPath === '/admin/students' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const rows = db.prepare(`
+      SELECT s.*,
+        (SELECT count(*) FROM enrollments WHERE student_id=s.id) as courses_count,
+        (SELECT count(*) FROM submissions WHERE student_id=s.id) as submissions_count
+      FROM students s
+      ORDER BY s.name
+    `).all();
+    return json(res, rows);
+  }
+
+  // ── POST /api/admin/students ──────────────────────────────
+  if (apiPath === '/admin/students' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { id, name, email, user_id } = body;
+      if (!name) return error(res, 'Nombre requerido', 400);
+      const sid = id || ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+      db.prepare('INSERT INTO students (id, name, email, user_id) VALUES (?, ?, ?, ?)').run(
+        sid, name, email || null, user_id || null
+      );
+      const s = db.prepare('SELECT * FROM students WHERE id=?').get(sid);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create', 'student', sid);
+      return json(res, s);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/students/:id ───────────────────────────
+  const stuPutMatch = apiPath.match(/^\/admin\/students\/([^/]+)$/);
+  if (stuPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const s = db.prepare('SELECT * FROM students WHERE id=?').get(stuPutMatch[1]);
+      if (!s) return error(res, 'Estudiante no existe', 404);
+      const name = typeof body.name === 'string' ? body.name : s.name;
+      const email = typeof body.email === 'string' ? body.email : s.email;
+      const user_id = typeof body.user_id === 'string' ? body.user_id : s.user_id;
+      db.prepare('UPDATE students SET name=?, email=?, user_id=? WHERE id=?').run(name, email, user_id, s.id);
+      const updated = db.prepare('SELECT * FROM students WHERE id=?').get(s.id);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update', 'student', s.id);
+      return json(res, updated);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/students/:id ────────────────────────
+  if (stuPutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const s = db.prepare('SELECT * FROM students WHERE id=?').get(stuPutMatch[1]);
+    if (!s) return error(res, 'Estudiante no existe', 404);
+    db.prepare('DELETE FROM students WHERE id=?').run(s.id);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete', 'student', s.id);
+    return json(res, { ok: true, id: s.id });
+  }
+
+  // ── GET /api/admin/assignments ────────────────────────────
+  if (apiPath === '/admin/assignments' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const rows = db.prepare(`
+      SELECT a.*, c.name as course_name, u.name as teacher_name,
+        (SELECT count(*) FROM submissions WHERE assignment_id=a.id) as submissions_count
+      FROM assignments a
+      JOIN courses c ON a.course_id = c.id
+      LEFT JOIN users u ON c.teacher_id = u.id
+      ORDER BY a.due_at DESC
+    `).all();
+    return json(res, rows);
+  }
+
+  // ── POST /api/admin/assignments ───────────────────────────
+  if (apiPath === '/admin/assignments' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { id, course_id, title, prompt, due_at } = body;
+      if (!course_id || !title) return error(res, 'course_id y title requeridos', 400);
+      const aid = id || ('a-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+      const due = due_at || new Date(Date.now() + 7*24*60*60*1000).toISOString();
+      const p = prompt || '';
+      db.prepare('INSERT INTO assignments (id, course_id, title, prompt, due_at) VALUES (?, ?, ?, ?, ?)').run(aid, course_id, title, p, due);
+      const a = db.prepare('SELECT * FROM assignments WHERE id=?').get(aid);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create', 'assignment', aid);
+      return json(res, a);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/assignments/:id ─────────────────────
+  const adminAssignDelMatch = apiPath.match(/^\/admin\/assignments\/([^/]+)$/);
+  if (adminAssignDelMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const a = db.prepare('SELECT * FROM assignments WHERE id=?').get(adminAssignDelMatch[1]);
+    if (!a) return error(res, 'Tarea no existe', 404);
+    db.prepare('DELETE FROM assignments WHERE id=?').run(a.id);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete', 'assignment', a.id);
+    return json(res, { ok: true, id: a.id });
+  }
+
+  // ── GET /api/admin/config ─────────────────────────────────
+  if (apiPath === '/admin/config' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const config = db.prepare('SELECT key, value, description FROM ai_config ORDER BY key').all();
+    const providers = db.prepare('SELECT * FROM ai_providers ORDER BY priority DESC, name').all();
+    return json(res, { config, providers });
+  }
+
+  // ── PUT /api/admin/config/:key ────────────────────────────
+  const configPutMatch = apiPath.match(/^\/admin\/config\/([^/]+)$/);
+  if (configPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const key = configPutMatch[1];
+      const existing = db.prepare('SELECT * FROM ai_config WHERE key=?').get(key);
+      if (!existing) return error(res, 'Config key no existe', 404);
+      const value = typeof body.value === 'string' ? body.value : existing.value;
+      db.prepare('UPDATE ai_config SET value=? WHERE key=?').run(value, key);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update_config', key, key);
+      return json(res, { key, value });
+    }).catch(e => error(res, e.message, 500));
+  }
+
+
+    // ═══════════════════════════════════════════════════════════════
   // AUTH ENDPOINTS
   // ═══════════════════════════════════════════════════════════════
 

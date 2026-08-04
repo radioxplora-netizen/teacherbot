@@ -18,6 +18,14 @@ import ViceDashboard from "./pages/vicerrectorado/ViceDashboard";
 import SystemLayout from "./pages/sistemas/SystemLayout";
 import SystemLogs from "./pages/sistemas/SystemLogs";
 import AIConfig from "./pages/sistemas/AIConfig";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminCourses from "./pages/admin/AdminCourses";
+import AdminStudents from "./pages/admin/AdminStudents";
+import AdminAssignments from "./pages/admin/AdminAssignments";
+import AdminConfig from "./pages/admin/AdminConfig";
+
 
 const queryClient = new QueryClient();
 
@@ -34,6 +42,17 @@ function AppRoutes() {
         <Route index element={<TeacherDashboard />} />
         <Route path=":courseId" element={<TeacherCourse />} />
         <Route path=":courseId/tareas/:assignmentId" element={<TeacherAssignment />} />
+      </Route>
+
+
+      {/* Admin */}
+      <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="usuarios" element={<AdminUsers />} />
+        <Route path="cursos" element={<AdminCourses />} />
+        <Route path="estudiantes" element={<AdminStudents />} />
+        <Route path="tareas" element={<AdminAssignments />} />
+        <Route path="configuracion" element={<AdminConfig />} />
       </Route>
 
       {/* Vicerrector */}

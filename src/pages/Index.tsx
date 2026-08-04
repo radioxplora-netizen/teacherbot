@@ -120,8 +120,9 @@ function StatCard({ value, label, icon: Icon }: { value: string; label: string; 
 /** Botón de acceso único — solo login o Mi Panel según sesión */
 function RoleButtons() {
   const { user, isAuthenticated, logout } = useAuth();
-  const panelHref = user?.role === 'vicerrector' ? '/vicerrectorado' 
-    : user?.role === 'sistemas' ? '/sistemas' 
+  const panelHref = user?.role === 'admin' ? '/admin'
+    : user?.role === 'vicerrector' ? '/vicerrectorado'
+    : user?.role === 'sistemas' ? '/sistemas'
     : '/docente';
 
   return (
@@ -147,7 +148,7 @@ function RoleButtons() {
 function HeaderBar() {
   const { user, isAuthenticated } = useAuth();
   const accessHref = isAuthenticated
-    ? (user?.role === 'vicerrector' ? '/vicerrectorado' : user?.role === 'sistemas' ? '/sistemas' : '/docente')
+    ? (user?.role === 'admin' ? '/admin' : user?.role === 'vicerrector' ? '/vicerrectorado' : user?.role === 'sistemas' ? '/sistemas' : '/docente')
     : '/login';
   const accessLabel = isAuthenticated ? 'Mi Panel' : 'Acceder';
 
