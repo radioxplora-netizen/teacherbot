@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ChevronLeft, Eye, FileText, Loader2, MessageSquare, Save, Sparkles, RefreshCw, ExternalLink } from "lucide-react";
+import { ChevronLeft, Eye, FileText, Loader2, MessageSquare, Save, Sparkles, RefreshCw, ExternalLink, Plus, Trash2, Pencil, X, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,16 +25,79 @@ function statusVariant(status: string): "secondary" | "default" | "destructive" 
   return "secondary";
 }
 
+interface RubricItem { id?: string; criterion: string; description: string; points: number; }
+
 export default function TeacherAssignment() {
   const { courseId, assignmentId } = useParams();
   const { data: assignment, loading, error, refetch } = useAssignment(assignmentId);
   const [selectedSub, setSelectedSub] = useState<any>(null);
   const [gradeInput, setGradeInput] = useState("");
   const [feedbackInput, setFeedbackInput] = useState("");
-  const [evaluating, setEvaluating] = useState<string | null>(null); // submission ID being evaluated
+  const [evaluating, setEvaluating] = useState<string | null>(null);
+
+  // Editable: prompt, título, fecha
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [promptDraft, setPromptDraft] = useState("");
+  const [savingMeta, setSavingMeta] = useState(false);
+
+  // Editable: rúbrica
+  const [editingRubric, setEditingRubric] = useState(false);
+  const [rubricDraft, setRubricDraft] = useState<RubricItem[]>([]);
+  const [savingRubric, setSavingRubric] = useState(false);
+
+  useEffect(() => {
+    if (assignment) {
+      setTitleDraft(assignment.title || "");
+      setPromptDraft(assignment.prompt || "");
+    }
+  }, [assignment?.id]);
 
   const submissions = assignment?.submissions || [];
-  const rubric = assignment?.rubric || [];
+  const rubric: RubricItem[] = assignment?.rubric || [];
+
+  const startEditRubric = () => {
+    setRubricDraft(rubric.map(r => ({ id: r.id, criterion: r.criterion, description: r.description || "", points: r.points })));
+    setEditingRubric(true);
+  };
+
+  const saveMeta = async () => {
+    setSavingMeta(true);
+    try {
+      const r = await fetch(`/api/assignments/${assignmentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: titleDraft, prompt: promptDraft }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast.success("Tarea actualizada");
+      setEditing(false);
+      refetch();
+    } catch (e: any) {
+      toast.error("Error al guardar: " + e.message);
+    } finally {
+      setSavingMeta(false);
+    }
+  };
+
+  const saveRubric = async () => {
+    setSavingRubric(true);
+    try {
+      const r = await fetch(`/api/assignments/${assignmentId}/rubric`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: rubricDraft.filter(it => it.criterion.trim()) }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast.success("Rúbrica actualizada");
+      setEditingRubric(false);
+      refetch();
+    } catch (e: any) {
+      toast.error("Error al guardar rúbrica: " + e.message);
+    } finally {
+      setSavingRubric(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -57,13 +120,39 @@ export default function TeacherAssignment() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{assignment.title}</h1>
+        <div className="flex-1">
+          {editing ? (
+            <Input
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              className="text-2xl font-semibold h-12 max-w-2xl"
+              placeholder="Título de la tarea"
+            />
+          ) : (
+            <h1 className="text-3xl font-semibold tracking-tight">{assignment.title}</h1>
+          )}
           <p className="mt-1 text-muted-foreground">{assignment.course_name}</p>
         </div>
-        <Button asChild variant="outline">
-          <a href={`/docente/${courseId}`}><ChevronLeft className="mr-1" /> Volver al curso</a>
-        </Button>
+        <div className="flex gap-2">
+          {editing ? (
+            <>
+              <Button variant="outline" onClick={() => { setEditing(false); setTitleDraft(assignment.title); setPromptDraft(assignment.prompt); }}>
+                <X className="mr-1 size-4" /> Cancelar
+              </Button>
+              <Button onClick={saveMeta} disabled={savingMeta}>
+                {savingMeta ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Check className="mr-1 size-4" />}
+                Guardar
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="mr-1 size-4" /> Editar
+            </Button>
+          )}
+          <Button asChild variant="outline">
+            <a href={`/docente/${courseId}`}><ChevronLeft className="mr-1" /> Volver al curso</a>
+          </Button>
+        </div>
       </div>
 
       {/* Config + Rubric */}
@@ -75,28 +164,91 @@ export default function TeacherAssignment() {
             <CardDescription>Instrucciones para la evaluación con IA</CardDescription>
           </CardHeader>
           <CardContent>
-            <Textarea value={assignment.prompt} readOnly className="min-h-32 text-sm bg-muted/30" />
+            {editing ? (
+              <Textarea
+                value={promptDraft}
+                onChange={e => setPromptDraft(e.target.value)}
+                className="min-h-40 text-sm"
+                placeholder="Describe las instrucciones de la tarea..."
+              />
+            ) : (
+              <Textarea value={assignment.prompt || ""} readOnly className="min-h-32 text-sm bg-muted/30" />
+            )}
           </CardContent>
         </Card>
 
         {/* Rubric */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><FileText className="size-4" /> Rúbrica</CardTitle>
-            <CardDescription>{rubric.length} criterios de evaluación</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2"><FileText className="size-4" /> Rúbrica</CardTitle>
+              <CardDescription>{(editingRubric ? rubricDraft : rubric).length} criterios de evaluación</CardDescription>
+            </div>
+            {editingRubric ? (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setEditingRubric(false)}>
+                  <X className="mr-1 size-4" /> Cancelar
+                </Button>
+                <Button size="sm" onClick={saveRubric} disabled={savingRubric}>
+                  {savingRubric ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Check className="mr-1 size-4" />}
+                  Guardar
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" onClick={startEditRubric}>
+                <Pencil className="mr-1 size-4" /> Editar
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {rubric.map((r: any) => (
-                <div key={r.id} className="flex items-start justify-between gap-2 rounded-md border p-3">
-                  <div>
-                    <p className="text-sm font-medium">{r.criterion}</p>
-                    <p className="text-xs text-muted-foreground">{r.description}</p>
+            {editingRubric ? (
+              <div className="space-y-3">
+                {rubricDraft.map((it, idx) => (
+                  <div key={idx} className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={it.criterion}
+                        onChange={e => setRubricDraft(prev => prev.map((p, i) => i === idx ? { ...p, criterion: e.target.value } : p))}
+                        placeholder="Criterio"
+                        className="flex-1"
+                      />
+                      <Input
+                        type="number" min="0" step="0.5"
+                        value={it.points}
+                        onChange={e => setRubricDraft(prev => prev.map((p, i) => i === idx ? { ...p, points: Number(e.target.value) } : p))}
+                        className="w-20"
+                      />
+                      <Button size="icon" variant="ghost" onClick={() => setRubricDraft(prev => prev.filter((_, i) => i !== idx))}>
+                        <Trash2 className="size-4 text-red-600" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={it.description}
+                      onChange={e => setRubricDraft(prev => prev.map((p, i) => i === idx ? { ...p, description: e.target.value } : p))}
+                      placeholder="Descripción (opcional)"
+                      rows={2}
+                    />
                   </div>
-                  <Badge variant="secondary" className="shrink-0">{r.points} pts</Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setRubricDraft(prev => [...prev, { criterion: "", description: "", points: 0 }])}>
+                  <Plus className="mr-1 size-4" /> Agregar criterio
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {rubric.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Sin criterios definidos.</p>
+                ) : rubric.map((r: any) => (
+                  <div key={r.id} className="flex items-start justify-between gap-2 rounded-md border p-3">
+                    <div>
+                      <p className="text-sm font-medium">{r.criterion}</p>
+                      {r.description && <p className="text-xs text-muted-foreground">{r.description}</p>}
+                    </div>
+                    <Badge variant="secondary" className="shrink-0">{r.points} pts</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>

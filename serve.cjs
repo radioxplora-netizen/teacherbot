@@ -797,6 +797,53 @@ function handleAPI(req, res, apiPath) {
     return json(res, assignment);
   }
 
+  // ── PUT /api/assignments/:id ──────────────────────────────
+  // Actualiza título, prompt y fecha de entrega de una tarea
+  if (assignMatch && req.method === 'PUT') {
+    const user = requireAuth(req, res); if (!user) return;
+    return readBody(req).then(body => {
+      const existing = db.prepare('SELECT * FROM assignments WHERE id = ?').get(assignMatch[1]);
+      if (!existing) return error(res, 'Tarea no encontrada', 404);
+      const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title;
+      const prompt = typeof body.prompt === 'string' ? body.prompt : existing.prompt;
+      const due_at = typeof body.due_at === 'string' && body.due_at.trim() ? body.due_at.trim() : existing.due_at;
+      db.prepare('UPDATE assignments SET title = ?, prompt = ?, due_at = ? WHERE id = ?').run(title, prompt, due_at, assignMatch[1]);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(user.id, 'update', 'assignment', assignMatch[1]);
+      const updated = db.prepare('SELECT * FROM assignments WHERE id = ?').get(assignMatch[1]);
+      return json(res, updated);
+    }).catch(err => error(res, err.message, 500));
+  }
+
+  // ── PUT /api/assignments/:id/rubric ───────────────────────
+  // Reemplaza los criterios de rúbrica de una tarea
+  const rubricMatch = apiPath.match(/^\/assignments\/([^/]+)\/rubric$/);
+  if (rubricMatch && req.method === 'PUT') {
+    const user = requireAuth(req, res); if (!user) return;
+    return readBody(req).then(body => {
+      const items = Array.isArray(body.items) ? body.items : [];
+      const aid = rubricMatch[1];
+      const existing = db.prepare('SELECT id FROM assignments WHERE id = ?').get(aid);
+      if (!existing) return error(res, 'Tarea no encontrada', 404);
+      const tx = db.transaction((arr) => {
+        db.prepare('DELETE FROM rubric_items WHERE assignment_id = ?').run(aid);
+        const ins = db.prepare('INSERT INTO rubric_items (assignment_id, criterion, description, points, sort_order) VALUES (?, ?, ?, ?, ?)');
+        arr.forEach((it, idx) => {
+          ins.run(
+            aid,
+            String(it.criterion || '').trim() || ('Criterio ' + (idx + 1)),
+            String(it.description || '').trim(),
+            parseFloat(it.points) || 0.0,
+            parseInt(idx + 1, 10) || 1
+          );
+        });
+      });
+      tx(items);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(user.id, 'update', 'rubric', aid);
+      const rubric = db.prepare('SELECT * FROM rubric_items WHERE assignment_id = ? ORDER BY sort_order').all(aid);
+      return json(res, { ok: true, rubric });
+    }).catch(err => error(res, err.message, 500));
+  }
+
   // ── GET /api/submissions/:id ──────────────────────────────
   const subMatch = apiPath.match(/^\/submissions\/([^/]+)$/);
   if (subMatch && req.method === 'GET') {
