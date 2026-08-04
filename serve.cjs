@@ -834,7 +834,258 @@ function handleAPI(req, res, apiPath) {
     return json(res, { ok: true, id: a.id });
   }
 
-  // ── GET /api/admin/config ─────────────────────────────────
+
+  // ═══════════════════════════════════════════════════════════════
+  // METADATA ENDPOINTS - Plataforma parametrizable
+  // ═══════════════════════════════════════════════════════════════
+
+  // ── GET /api/admin/config/schema ───────────────────────────
+  // Devuelve el schema completo: categorías + metadata de campos + metadata de proveedores
+  if (apiPath === '/admin/config/schema' && req.method === 'GET') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const categories = db.prepare('SELECT * FROM config_categories WHERE is_active=1 ORDER BY sort_order, label').all();
+    const fields = db.prepare('SELECT * FROM config_field_metadata WHERE is_visible=1 ORDER BY category_key, sort_order, label').all();
+    const provider_fields = db.prepare('SELECT * FROM provider_field_metadata WHERE is_visible=1 ORDER BY sort_order, label').all();
+
+    // Parse options_json → array
+    for (const f of [...fields, ...provider_fields]) {
+      try { f.options = f.options_json ? JSON.parse(f.options_json) : null; } catch { f.options = null; }
+      delete f.options_json;
+    }
+
+    // Incluir valores actuales de ai_config (mezclados con defaults)
+    const config_values = {};
+    const existing = db.prepare('SELECT key, value FROM ai_config').all();
+    for (const r of existing) config_values[r.key] = r.value;
+
+    // Mezclar: defaults < existentes (los existentes ganan)
+    const merged = {};
+    for (const f of fields) {
+      merged[f.key] = config_values[f.key] !== undefined ? config_values[f.key] : f.default_value;
+    }
+
+    return json(res, { categories, fields, provider_fields, values: merged });
+  }
+
+  // ── POST /api/admin/config/fields ───────────────────────────
+  if (apiPath === '/admin/config/fields' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { key, label, description, type, options, default_value, category_key, icon, sort_order, is_visible, is_required, min_value, max_value, placeholder } = body;
+      if (!key || !label || !type) return error(res, 'key, label y type son requeridos', 400);
+      if (!['text','longtext','number','boolean','select','json','password','url','color','date'].includes(type)) return error(res, 'type inválido', 400);
+      const exists = db.prepare('SELECT key FROM config_field_metadata WHERE key=?').get(key);
+      if (exists) return error(res, 'La key ya existe', 409);
+      db.prepare(`INSERT INTO config_field_metadata
+        (key, label, description, type, options_json, default_value, category_key, icon, sort_order, is_visible, is_required, min_value, max_value, placeholder)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+          key, label, description || null, type, options ? JSON.stringify(options) : null,
+          default_value !== undefined ? String(default_value) : null,
+          category_key || null, icon || null, sort_order || 0,
+          is_visible === false ? 0 : 1, is_required ? 1 : 0,
+          min_value !== undefined ? min_value : null,
+          max_value !== undefined ? max_value : null,
+          placeholder || null
+        );
+      const created = db.prepare('SELECT * FROM config_field_metadata WHERE key=?').get(key);
+      try { created.options = created.options_json ? JSON.parse(created.options_json) : null; } catch {}
+      delete created.options_json;
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create_field', 'config_field', key);
+      return json(res, created);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/config/fields/:key ────────────────────────
+  const fieldPutMatch = apiPath.match(/^\/admin\/config\/fields\/([^/]+)$/);
+  if (fieldPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const f = db.prepare('SELECT * FROM config_field_metadata WHERE key=?').get(fieldPutMatch[1]);
+      if (!f) return error(res, 'Campo no existe', 404);
+      const upd = {
+        label: body.label !== undefined ? body.label : f.label,
+        description: body.description !== undefined ? body.description : f.description,
+        type: body.type !== undefined ? body.type : f.type,
+        options_json: body.options !== undefined ? JSON.stringify(body.options) : f.options_json,
+        default_value: body.default_value !== undefined ? String(body.default_value) : f.default_value,
+        category_key: body.category_key !== undefined ? body.category_key : f.category_key,
+        icon: body.icon !== undefined ? body.icon : f.icon,
+        sort_order: body.sort_order !== undefined ? body.sort_order : f.sort_order,
+        is_visible: body.is_visible !== undefined ? (body.is_visible ? 1 : 0) : f.is_visible,
+        is_required: body.is_required !== undefined ? (body.is_required ? 1 : 0) : f.is_required,
+        min_value: body.min_value !== undefined ? body.min_value : f.min_value,
+        max_value: body.max_value !== undefined ? body.max_value : f.max_value,
+        placeholder: body.placeholder !== undefined ? body.placeholder : f.placeholder,
+      };
+      db.prepare(`UPDATE config_field_metadata SET
+        label=?, description=?, type=?, options_json=?, default_value=?, category_key=?, icon=?, sort_order=?, is_visible=?, is_required=?, min_value=?, max_value=?, placeholder=?, updated_at=datetime('now')
+        WHERE key=?`).run(
+        upd.label, upd.description, upd.type, upd.options_json, upd.default_value,
+        upd.category_key, upd.icon, upd.sort_order, upd.is_visible, upd.is_required,
+        upd.min_value, upd.max_value, upd.placeholder, f.key);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update_field', 'config_field', f.key);
+      const updated = db.prepare('SELECT * FROM config_field_metadata WHERE key=?').get(f.key);
+      try { updated.options = updated.options_json ? JSON.parse(updated.options_json) : null; } catch {}
+      delete updated.options_json;
+      return json(res, updated);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/config/fields/:key ─────────────────────
+  if (fieldPutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const f = db.prepare('SELECT * FROM config_field_metadata WHERE key=?').get(fieldPutMatch[1]);
+    if (!f) return error(res, 'Campo no existe', 404);
+    db.prepare('DELETE FROM config_field_metadata WHERE key=?').run(f.key);
+    db.prepare('DELETE FROM ai_config WHERE key=?').run(f.key);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete_field', 'config_field', f.key);
+    return json(res, { ok: true, key: f.key });
+  }
+
+  // ── POST /api/admin/config/categories ───────────────────────
+  if (apiPath === '/admin/config/categories' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { key, label, description, icon, sort_order } = body;
+      if (!key || !label) return error(res, 'key y label requeridos', 400);
+      const exists = db.prepare('SELECT key FROM config_categories WHERE key=?').get(key);
+      if (exists) return error(res, 'La categoría ya existe', 409);
+      db.prepare('INSERT INTO config_categories (key, label, description, icon, sort_order) VALUES (?, ?, ?, ?, ?)').run(
+        key, label, description || null, icon || 'Settings', sort_order || 0);
+      const created = db.prepare('SELECT * FROM config_categories WHERE key=?').get(key);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create_category', 'config_category', key);
+      return json(res, created);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/config/categories/:key ────────────────────
+  const catPutMatch = apiPath.match(/^\/admin\/config\/categories\/([^/]+)$/);
+  if (catPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const c = db.prepare('SELECT * FROM config_categories WHERE key=?').get(catPutMatch[1]);
+      if (!c) return error(res, 'Categoría no existe', 404);
+      const upd = {
+        label: body.label !== undefined ? body.label : c.label,
+        description: body.description !== undefined ? body.description : c.description,
+        icon: body.icon !== undefined ? body.icon : c.icon,
+        sort_order: body.sort_order !== undefined ? body.sort_order : c.sort_order,
+        is_active: body.is_active !== undefined ? (body.is_active ? 1 : 0) : c.is_active,
+      };
+      db.prepare('UPDATE config_categories SET label=?, description=?, icon=?, sort_order=?, is_active=? WHERE key=?').run(
+        upd.label, upd.description, upd.icon, upd.sort_order, upd.is_active, c.key);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update_category', 'config_category', c.key);
+      return json(res, db.prepare('SELECT * FROM config_categories WHERE key=?').get(c.key));
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/config/categories/:key ─────────────────
+  if (catPutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const c = db.prepare('SELECT * FROM config_categories WHERE key=?').get(catPutMatch[1]);
+    if (!c) return error(res, 'Categoría no existe', 404);
+    db.prepare('DELETE FROM config_categories WHERE key=?').run(c.key);
+    db.prepare('UPDATE config_field_metadata SET category_key=NULL WHERE category_key=?').run(c.key);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete_category', 'config_category', c.key);
+    return json(res, { ok: true, key: c.key });
+  }
+
+  // ── POST /api/admin/config/provider-fields ───────────────────
+  if (apiPath === '/admin/config/provider-fields' && req.method === 'POST') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const { key, label, description, type, options, default_value, is_required, sort_order, is_visible, placeholder } = body;
+      if (!key || !label || !type) return error(res, 'key, label y type requeridos', 400);
+      const exists = db.prepare('SELECT key FROM provider_field_metadata WHERE key=?').get(key);
+      if (exists) return error(res, 'La key ya existe', 409);
+      db.prepare(`INSERT INTO provider_field_metadata (key, label, description, type, options_json, default_value, is_required, sort_order, is_visible, placeholder)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+          key, label, description || null, type, options ? JSON.stringify(options) : null,
+          default_value !== undefined ? String(default_value) : null,
+          is_required ? 1 : 0, sort_order || 0, is_visible === false ? 0 : 1,
+          placeholder || null);
+      const created = db.prepare('SELECT * FROM provider_field_metadata WHERE key=?').get(key);
+      try { created.options = created.options_json ? JSON.parse(created.options_json) : null; } catch {}
+      delete created.options_json;
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'create_prov_field', 'provider_field', key);
+      return json(res, created);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── PUT /api/admin/config/provider-fields/:key ──────────────
+  const provFieldPutMatch = apiPath.match(/^\/admin\/config\/provider-fields\/([^/]+)$/);
+  if (provFieldPutMatch && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const f = db.prepare('SELECT * FROM provider_field_metadata WHERE key=?').get(provFieldPutMatch[1]);
+      if (!f) return error(res, 'Campo no existe', 404);
+      const upd = {
+        label: body.label !== undefined ? body.label : f.label,
+        description: body.description !== undefined ? body.description : f.description,
+        type: body.type !== undefined ? body.type : f.type,
+        options_json: body.options !== undefined ? JSON.stringify(body.options) : f.options_json,
+        default_value: body.default_value !== undefined ? String(body.default_value) : f.default_value,
+        is_required: body.is_required !== undefined ? (body.is_required ? 1 : 0) : f.is_required,
+        sort_order: body.sort_order !== undefined ? body.sort_order : f.sort_order,
+        is_visible: body.is_visible !== undefined ? (body.is_visible ? 1 : 0) : f.is_visible,
+        placeholder: body.placeholder !== undefined ? body.placeholder : f.placeholder,
+      };
+      db.prepare(`UPDATE provider_field_metadata SET
+        label=?, description=?, type=?, options_json=?, default_value=?, is_required=?, sort_order=?, is_visible=?, placeholder=?, updated_at=datetime('now')
+        WHERE key=?`).run(
+        upd.label, upd.description, upd.type, upd.options_json, upd.default_value,
+        upd.is_required, upd.sort_order, upd.is_visible, upd.placeholder, f.key);
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'update_prov_field', 'provider_field', f.key);
+      const updated = db.prepare('SELECT * FROM provider_field_metadata WHERE key=?').get(f.key);
+      try { updated.options = updated.options_json ? JSON.parse(updated.options_json) : null; } catch {}
+      delete updated.options_json;
+      return json(res, updated);
+    }).catch(e => error(res, e.message, 500));
+  }
+
+  // ── DELETE /api/admin/config/provider-fields/:key ───────────
+  if (provFieldPutMatch && req.method === 'DELETE') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    const f = db.prepare('SELECT * FROM provider_field_metadata WHERE key=?').get(provFieldPutMatch[1]);
+    if (!f) return error(res, 'Campo no existe', 404);
+    db.prepare('DELETE FROM provider_field_metadata WHERE key=?').run(f.key);
+    db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'delete_prov_field', 'provider_field', f.key);
+    return json(res, { ok: true, key: f.key });
+  }
+
+  // ── PUT /api/admin/config/values ─────────────────────────────
+  // Bulk update de valores (lo usa el editor dinámico)
+  if (apiPath === '/admin/config/values' && req.method === 'PUT') {
+    const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
+    return readBody(req).then(body => {
+      const updates = [];
+      for (const [key, value] of Object.entries(body)) {
+        if (typeof value !== 'string') continue;
+        const meta = db.prepare('SELECT type FROM config_field_metadata WHERE key=?').get(key);
+        if (!meta) continue; // skip unknown keys
+        // Validation by type
+        if (meta.type === 'number') {
+          const n = parseFloat(value);
+          if (isNaN(n)) return error(res, `Campo "${key}" debe ser numérico`, 400);
+        }
+        if (meta.type === 'boolean') {
+          if (!['true','false','0','1'].includes(value)) return error(res, `Campo "${key}" debe ser booleano`, 400);
+        }
+        const existing = db.prepare('SELECT key FROM ai_config WHERE key=?').get(key);
+        if (existing) {
+          db.prepare('UPDATE ai_config SET value=?, updated_at=datetime(\'now\') WHERE key=?').run(value, key);
+        } else {
+          db.prepare('INSERT INTO ai_config (key, value) VALUES (?, ?)').run(key, value);
+        }
+        updates.push(key);
+      }
+      db.prepare('INSERT INTO activity_log (user_id, action, entity, entity_id) VALUES (?, ?, ?, ?)').run(admin.id, 'bulk_update_config', 'config', 'bulk');
+      return json(res, { ok: true, updated: updates });
+    }).catch(e => error(res, e.message, 500));
+  }
+
+
+    // ── GET /api/admin/config ─────────────────────────────────
   if (apiPath === '/admin/config' && req.method === 'GET') {
     const admin = requireAdmin(req, res); if (!admin) return error(res, 'No autorizado', 403);
     const config = db.prepare('SELECT key, value, description FROM ai_config ORDER BY key').all();
